@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { TrendingUp, Eye, Heart, MessageCircle, Users, Calendar, Video } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
@@ -9,6 +10,7 @@ import { useConnectedAccounts } from "@/hooks/useConnectedAccounts";
 const timeFilters = ["7 dias", "30 dias", "90 dias", "1 ano"];
 
 export default function Analytics() {
+  const [selectedFilter, setSelectedFilter] = useState("30 dias");
   const { data: videos } = useVideos();
   const { data: accounts } = useConnectedAccounts();
 
@@ -37,18 +39,19 @@ export default function Analytics() {
           </div>
           <Button variant="outline" size="sm">
             <Calendar className="w-4 h-4 mr-2" />
-            30 dias
+            {selectedFilter}
           </Button>
         </header>
 
         {/* Time Filters */}
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
-          {timeFilters.map((filter, index) => (
+          {timeFilters.map((filter) => (
             <Button
               key={filter}
-              variant={index === 1 ? "default" : "ghost"}
+              variant={selectedFilter === filter ? "default" : "ghost"}
               size="sm"
               className="shrink-0"
+              onClick={() => setSelectedFilter(filter)}
             >
               {filter}
             </Button>
@@ -78,7 +81,7 @@ export default function Analytics() {
         {/* Performance Chart Placeholder */}
         <section className="card-elevated p-4">
           <h3 className="font-semibold text-foreground mb-4">
-            Performance dos Últimos 30 Dias
+            Performance dos Últimos {selectedFilter}
           </h3>
           <div className="h-48 flex items-center justify-center text-muted-foreground">
             <div className="text-center">

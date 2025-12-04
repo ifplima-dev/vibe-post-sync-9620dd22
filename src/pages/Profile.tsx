@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Settings, Grid, List, LogOut, Edit3, Link2, Loader2, Video } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/dashboard/VideoCard";
+import { EditProfileDialog } from "@/components/profile/EditProfileDialog";
 import {
   InstagramIcon,
   TikTokIcon,
@@ -9,12 +11,12 @@ import {
   FacebookIcon,
 } from "@/components/icons/SocialIcons";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useConnectedAccounts } from "@/hooks/useConnectedAccounts";
 import { useVideos } from "@/hooks/useVideos";
+import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -27,11 +29,13 @@ const platformIcons: Record<string, typeof InstagramIcon> = {
 
 export default function Profile() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { data: profile, isLoading: profileLoading } = useProfile();
   const { data: accounts, isLoading: accountsLoading } = useConnectedAccounts();
   const { data: videos, isLoading: videosLoading } = useVideos();
+  const { toast } = useToast();
 
   const displayName = profile?.display_name || user?.email?.split("@")[0] || "Creator";
   const username = profile?.username || user?.email?.split("@")[0] || "creator";
@@ -40,6 +44,30 @@ export default function Profile() {
   const handleLogout = async () => {
     await signOut();
     navigate("/auth");
+  };
+
+  const handleShare = async () => {
+    const profileUrl = `${window.location.origin}/profile/${username}`;
+    try {
+      await navigator.clipboard.writeText(profileUrl);
+      toast({
+        title: "Link copiado!",
+        description: "O link do perfil foi copiado para a área de transferência.",
+      });
+    } catch {
+      toast({
+        title: "Erro ao copiar",
+        description: "Não foi possível copiar o link.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSettings = () => {
+    toast({
+      title: "Configurações",
+      description: "Página de configurações em desenvolvimento.",
+    });
   };
 
   if (profileLoading) {
@@ -66,6 +94,7 @@ export default function Profile() {
               variant="ghost"
               size="icon"
               className="absolute top-0 right-0"
+              onClick={handleSettings}
             >
               <Settings className="w-5 h-5" />
             </Button>
@@ -106,11 +135,11 @@ export default function Profile() {
 
             {/* Action Buttons */}
             <div className="flex gap-3 mt-4">
-              <Button variant="gradient" className="flex-1">
+              <Button variant="gradient" className="flex-1" onClick={() => setEditDialogOpen(true)}>
                 <Edit3 className="w-4 h-4" />
                 Editar Perfil
               </Button>
-              <Button variant="outline" className="flex-1">
+              <Button variant="outline" className="flex-1" onClick={handleShare}>
                 <Link2 className="w-4 h-4" />
                 Compartilhar
               </Button>
@@ -247,6 +276,8 @@ export default function Profile() {
           Sair da Conta
         </Button>
       </div>
+
+      <EditProfileDialog open={editDialogOpen} onOpenChange={setEditDialogOpen} />
     </AppLayout>
   );
 }

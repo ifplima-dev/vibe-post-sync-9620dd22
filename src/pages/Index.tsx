@@ -1,9 +1,12 @@
-import { Eye, Heart, Video, TrendingUp, Bell, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Eye, Heart, Video, TrendingUp, Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { SocialCard } from "@/components/dashboard/SocialCard";
 import { VideoCard } from "@/components/dashboard/VideoCard";
 import { Button } from "@/components/ui/button";
+import { NotificationsSheet } from "@/components/notifications/NotificationsSheet";
+import { ConnectAccountDialog } from "@/components/social/ConnectAccountDialog";
 import {
   InstagramIcon,
   TikTokIcon,
@@ -32,8 +35,16 @@ export default function Index() {
   const { data: accounts, isLoading: accountsLoading } = useConnectedAccounts();
   const { data: videos, isLoading: videosLoading } = useVideos();
 
+  const [connectDialogOpen, setConnectDialogOpen] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+
   const displayName = profile?.display_name || user?.email?.split("@")[0] || "Creator";
   const recentVideos = videos?.slice(0, 2) || [];
+
+  const handleConnectAccount = (platform: string) => {
+    setSelectedPlatform(platform);
+    setConnectDialogOpen(true);
+  };
 
   // Placeholder stats (will be dynamic with video_stats table later)
   const stats = [
@@ -56,10 +67,7 @@ export default function Index() {
               Vamos publicar algo incrível hoje?
             </p>
           </div>
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
-          </Button>
+          <NotificationsSheet />
         </header>
 
         {/* Quick Upload CTA */}
@@ -117,6 +125,7 @@ export default function Index() {
                   icon={platformIcons[account.platform]}
                   connected={account.is_connected}
                   followers={account.platform_username || undefined}
+                  onConnect={() => handleConnectAccount(account.platform)}
                   className={`animation-delay-${index * 100}`}
                 />
               ))}
@@ -173,6 +182,12 @@ export default function Index() {
           )}
         </section>
       </div>
+
+      <ConnectAccountDialog
+        open={connectDialogOpen}
+        onOpenChange={setConnectDialogOpen}
+        platform={selectedPlatform}
+      />
     </AppLayout>
   );
 }

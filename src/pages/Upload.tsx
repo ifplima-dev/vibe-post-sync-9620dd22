@@ -78,6 +78,20 @@ export default function Upload() {
     );
   };
 
+  const handleCutVideo = () => {
+    toast({
+      title: "Em desenvolvimento",
+      description: "A funcionalidade de corte será implementada em breve.",
+    });
+  };
+
+  const handlePreview = () => {
+    toast({
+      title: "Em desenvolvimento",
+      description: "A funcionalidade de preview será implementada em breve.",
+    });
+  };
+
   const validateForm = () => {
     if (!videoFile) {
       toast({
@@ -247,11 +261,11 @@ export default function Upload() {
               
               {/* Quick actions */}
               <div className="absolute bottom-3 left-3 right-3 flex gap-2">
-                <Button variant="glass" size="sm" className="flex-1">
+                <Button variant="glass" size="sm" className="flex-1" onClick={handleCutVideo}>
                   <Scissors className="w-4 h-4" />
                   Cortar
                 </Button>
-                <Button variant="glass" size="sm" className="flex-1">
+                <Button variant="glass" size="sm" className="flex-1" onClick={handlePreview}>
                   <Play className="w-4 h-4" />
                   Preview
                 </Button>
@@ -332,12 +346,18 @@ export default function Upload() {
               {accounts?.map((account) => {
                 const Icon = platformIcons[account.platform];
                 return (
-                  <button
+                  <div
                     key={account.id}
                     onClick={() => account.is_connected && handlePlatformToggle(account.platform)}
-                    disabled={!account.is_connected}
+                    role="button"
+                    tabIndex={account.is_connected ? 0 : -1}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        account.is_connected && handlePlatformToggle(account.platform);
+                      }
+                    }}
                     className={cn(
-                      "card-elevated p-4 flex items-center gap-3 transition-all duration-300",
+                      "card-elevated p-4 flex items-center gap-3 transition-all duration-300 cursor-pointer",
                       selectedPlatforms.includes(account.platform) && "border-primary glow",
                       !account.is_connected && "opacity-50 cursor-not-allowed"
                     )}
@@ -345,10 +365,11 @@ export default function Upload() {
                     <Checkbox
                       checked={selectedPlatforms.includes(account.platform)}
                       disabled={!account.is_connected}
+                      onCheckedChange={() => account.is_connected && handlePlatformToggle(account.platform)}
                     />
                     <Icon className="w-5 h-5" />
                     <span className="text-sm font-medium capitalize">{account.platform}</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
