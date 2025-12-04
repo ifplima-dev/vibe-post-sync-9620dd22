@@ -16,7 +16,18 @@ import {
   YouTubeIcon,
   FacebookIcon,
 } from "@/components/icons/SocialIcons";
-import { ScheduledPost } from "@/contexts/SchedulerContext";
+
+export interface ScheduledPost {
+  id: string;
+  videoFile: string;
+  videoName: string;
+  title: string;
+  description: string;
+  platforms: string[];
+  scheduledDate: Date;
+  status: "scheduled" | "publishing" | "published" | "failed";
+  createdAt: Date;
+}
 
 const platformIcons: Record<string, React.FC<{ className?: string }>> = {
   instagram: InstagramIcon,

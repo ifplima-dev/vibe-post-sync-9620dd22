@@ -1,4 +1,4 @@
-import { Eye, Heart, Video, TrendingUp, Bell } from "lucide-react";
+import { Eye, Heart, Video, TrendingUp, Bell, Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { SocialCard } from "@/components/dashboard/SocialCard";
@@ -11,44 +11,37 @@ import {
   FacebookIcon,
 } from "@/components/icons/SocialIcons";
 import { useNavigate } from "react-router-dom";
+import { useProfile } from "@/hooks/useProfile";
+import { useConnectedAccounts } from "@/hooks/useConnectedAccounts";
+import { useVideos } from "@/hooks/useVideos";
+import { useAuth } from "@/contexts/AuthContext";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-const stats = [
-  { icon: Eye, label: "Visualizações", value: "12.4K", change: "+12%", positive: true },
-  { icon: Heart, label: "Curtidas", value: "3.2K", change: "+8%", positive: true },
-  { icon: Video, label: "Vídeos", value: "24", change: "+2", positive: true },
-  { icon: TrendingUp, label: "Engajamento", value: "8.5%", change: "-2%", positive: false },
-];
-
-const socialNetworks = [
-  { name: "Instagram", icon: <InstagramIcon className="w-6 h-6" />, connected: true, followers: "5.2K" },
-  { name: "TikTok", icon: <TikTokIcon className="w-6 h-6" />, connected: true, followers: "12.8K" },
-  { name: "YouTube", icon: <YouTubeIcon className="w-6 h-6" />, connected: false },
-  { name: "Facebook", icon: <FacebookIcon className="w-6 h-6" />, connected: false },
-];
-
-const recentVideos = [
-  {
-    thumbnail: "https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=400&h=300&fit=crop",
-    title: "Como criar conteúdo viral em 2024",
-    views: "4.2K",
-    likes: "892",
-    comments: "156",
-    platforms: ["instagram", "tiktok"],
-    date: "Há 2 dias",
-  },
-  {
-    thumbnail: "https://images.unsplash.com/photo-1492619375914-88005aa9e8fb?w=400&h=300&fit=crop",
-    title: "Dicas de edição para iniciantes",
-    views: "2.8K",
-    likes: "654",
-    comments: "89",
-    platforms: ["youtube", "instagram"],
-    date: "Há 5 dias",
-  },
-];
+const platformIcons: Record<string, React.ReactNode> = {
+  instagram: <InstagramIcon className="w-6 h-6" />,
+  tiktok: <TikTokIcon className="w-6 h-6" />,
+  youtube: <YouTubeIcon className="w-6 h-6" />,
+  facebook: <FacebookIcon className="w-6 h-6" />,
+};
 
 export default function Index() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: profile } = useProfile();
+  const { data: accounts, isLoading: accountsLoading } = useConnectedAccounts();
+  const { data: videos, isLoading: videosLoading } = useVideos();
+
+  const displayName = profile?.display_name || user?.email?.split("@")[0] || "Creator";
+  const recentVideos = videos?.slice(0, 2) || [];
+
+  // Placeholder stats (will be dynamic with video_stats table later)
+  const stats = [
+    { icon: Eye, label: "Visualizações", value: "-", change: "-", positive: true },
+    { icon: Heart, label: "Curtidas", value: "-", change: "-", positive: true },
+    { icon: Video, label: "Vídeos", value: String(videos?.length || 0), change: "-", positive: true },
+    { icon: TrendingUp, label: "Engajamento", value: "-", change: "-", positive: false },
+  ];
 
   return (
     <AppLayout>
@@ -57,7 +50,7 @@ export default function Index() {
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">
-              Olá, <span className="gradient-text">Creator</span> 👋
+              Olá, <span className="gradient-text">{displayName}</span> 👋
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
               Vamos publicar algo incrível hoje?
@@ -111,18 +104,24 @@ export default function Index() {
           <h2 className="text-lg font-semibold text-foreground mb-3">
             Redes Conectadas
           </h2>
-          <div className="grid grid-cols-2 gap-3">
-            {socialNetworks.map((network, index) => (
-              <SocialCard
-                key={network.name}
-                name={network.name}
-                icon={network.icon}
-                connected={network.connected}
-                followers={network.followers}
-                className={`animation-delay-${index * 100}`}
-              />
-            ))}
-          </div>
+          {accountsLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {accounts?.map((account, index) => (
+                <SocialCard
+                  key={account.id}
+                  name={account.platform.charAt(0).toUpperCase() + account.platform.slice(1)}
+                  icon={platformIcons[account.platform]}
+                  connected={account.is_connected}
+                  followers={account.platform_username || undefined}
+                  className={`animation-delay-${index * 100}`}
+                />
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Recent Videos */}
@@ -135,15 +134,43 @@ export default function Index() {
               Ver todos
             </Button>
           </div>
-          <div className="space-y-4">
-            {recentVideos.map((video, index) => (
-              <VideoCard
-                key={index}
-                {...video}
-                className={`animation-delay-${index * 150}`}
-              />
-            ))}
-          </div>
+          {videosLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : recentVideos.length > 0 ? (
+            <div className="space-y-4">
+              {recentVideos.map((video, index) => (
+                <VideoCard
+                  key={video.id}
+                  thumbnail={video.thumbnail_url || "/placeholder.svg"}
+                  title={video.title}
+                  views="-"
+                  likes="-"
+                  comments="-"
+                  platforms={[]}
+                  date={formatDistanceToNow(new Date(video.created_at), {
+                    addSuffix: true,
+                    locale: ptBR,
+                  })}
+                  className={`animation-delay-${index * 150}`}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="card-elevated p-8 text-center">
+              <Video className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-muted-foreground">Nenhum vídeo ainda</p>
+              <Button
+                variant="gradient"
+                size="sm"
+                className="mt-4"
+                onClick={() => navigate("/upload")}
+              >
+                Fazer Upload
+              </Button>
+            </div>
+          )}
         </section>
       </div>
     </AppLayout>

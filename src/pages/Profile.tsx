@@ -1,4 +1,4 @@
-import { Settings, Grid, List, LogOut, Edit3, Link2 } from "lucide-react";
+import { Settings, Grid, List, LogOut, Edit3, Link2, Loader2, Video } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/dashboard/VideoCard";
@@ -6,57 +6,51 @@ import {
   InstagramIcon,
   TikTokIcon,
   YouTubeIcon,
+  FacebookIcon,
 } from "@/components/icons/SocialIcons";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useProfile } from "@/hooks/useProfile";
+import { useConnectedAccounts } from "@/hooks/useConnectedAccounts";
+import { useVideos } from "@/hooks/useVideos";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-const userVideos = [
-  {
-    thumbnail: "https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=400&h=300&fit=crop",
-    title: "Como criar conteúdo viral em 2024",
-    views: "4.2K",
-    likes: "892",
-    comments: "156",
-    platforms: ["instagram", "tiktok"],
-    date: "Há 2 dias",
-  },
-  {
-    thumbnail: "https://images.unsplash.com/photo-1492619375914-88005aa9e8fb?w=400&h=300&fit=crop",
-    title: "Dicas de edição para iniciantes",
-    views: "2.8K",
-    likes: "654",
-    comments: "89",
-    platforms: ["youtube", "instagram"],
-    date: "Há 5 dias",
-  },
-  {
-    thumbnail: "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400&h=300&fit=crop",
-    title: "Minha rotina de criador de conteúdo",
-    views: "3.1K",
-    likes: "721",
-    comments: "98",
-    platforms: ["tiktok"],
-    date: "Há 1 semana",
-  },
-  {
-    thumbnail: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=400&h=300&fit=crop",
-    title: "Setup tour: meu estúdio caseiro",
-    views: "5.6K",
-    likes: "1.2K",
-    comments: "234",
-    platforms: ["youtube", "instagram", "tiktok"],
-    date: "Há 2 semanas",
-  },
-];
-
-const connectedAccounts = [
-  { name: "Instagram", icon: InstagramIcon, handle: "@creator_oficial", followers: "5.2K" },
-  { name: "TikTok", icon: TikTokIcon, handle: "@creator_oficial", followers: "12.8K" },
-  { name: "YouTube", icon: YouTubeIcon, handle: "Creator Oficial", followers: "2.1K" },
-];
+const platformIcons: Record<string, typeof InstagramIcon> = {
+  instagram: InstagramIcon,
+  tiktok: TikTokIcon,
+  youtube: YouTubeIcon,
+  facebook: FacebookIcon,
+};
 
 export default function Profile() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const { data: profile, isLoading: profileLoading } = useProfile();
+  const { data: accounts, isLoading: accountsLoading } = useConnectedAccounts();
+  const { data: videos, isLoading: videosLoading } = useVideos();
+
+  const displayName = profile?.display_name || user?.email?.split("@")[0] || "Creator";
+  const username = profile?.username || user?.email?.split("@")[0] || "creator";
+  const connectedAccounts = accounts?.filter((a) => a.is_connected) || [];
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/auth");
+  };
+
+  if (profileLoading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -78,26 +72,34 @@ export default function Profile() {
 
             {/* Avatar */}
             <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-coral to-magenta p-1 mb-4">
-              <div className="w-full h-full rounded-full bg-card flex items-center justify-center text-3xl font-bold gradient-text">
-                C
-              </div>
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt={displayName}
+                  className="w-full h-full rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full rounded-full bg-card flex items-center justify-center text-3xl font-bold gradient-text">
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
 
-            <h1 className="text-xl font-bold text-foreground">Creator Oficial</h1>
-            <p className="text-muted-foreground text-sm">@creator_oficial</p>
+            <h1 className="text-xl font-bold text-foreground">{displayName}</h1>
+            <p className="text-muted-foreground text-sm">@{username}</p>
 
             {/* Stats */}
             <div className="flex justify-center gap-8 mt-4 pt-4 border-t border-border">
               <div className="text-center">
-                <p className="text-xl font-bold text-foreground">24</p>
+                <p className="text-xl font-bold text-foreground">{videos?.length || 0}</p>
                 <p className="text-xs text-muted-foreground">Vídeos</p>
               </div>
               <div className="text-center">
-                <p className="text-xl font-bold text-foreground">20.1K</p>
+                <p className="text-xl font-bold text-foreground">-</p>
                 <p className="text-xs text-muted-foreground">Seguidores</p>
               </div>
               <div className="text-center">
-                <p className="text-xl font-bold text-foreground">45.2K</p>
+                <p className="text-xl font-bold text-foreground">-</p>
                 <p className="text-xs text-muted-foreground">Views</p>
               </div>
             </div>
@@ -121,27 +123,41 @@ export default function Profile() {
           <h2 className="text-lg font-semibold text-foreground mb-3">
             Contas Conectadas
           </h2>
-          <div className="space-y-2">
-            {connectedAccounts.map((account) => (
-              <div
-                key={account.name}
-                className="card-elevated p-3 flex items-center gap-3"
-              >
-                <account.icon className="w-5 h-5 text-foreground" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">
-                    {account.handle}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {account.followers} seguidores
-                  </p>
-                </div>
-                <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded-full">
-                  {account.name}
-                </span>
-              </div>
-            ))}
-          </div>
+          {accountsLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : connectedAccounts.length > 0 ? (
+            <div className="space-y-2">
+              {connectedAccounts.map((account) => {
+                const Icon = platformIcons[account.platform];
+                return (
+                  <div
+                    key={account.id}
+                    className="card-elevated p-3 flex items-center gap-3"
+                  >
+                    <Icon className="w-5 h-5 text-foreground" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-foreground">
+                        {account.platform_username || `@${username}`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Conectado
+                      </p>
+                    </div>
+                    <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded-full">
+                      {account.platform.charAt(0).toUpperCase() + account.platform.slice(1)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="card-elevated p-4 text-center text-muted-foreground">
+              <p>Nenhuma conta conectada</p>
+              <p className="text-sm mt-1">Conecte suas redes sociais para publicar</p>
+            </div>
+          )}
         </section>
 
         {/* Videos Section */}
@@ -176,25 +192,57 @@ export default function Profile() {
             </div>
           </div>
 
-          <div
-            className={cn(
-              viewMode === "grid"
-                ? "grid grid-cols-2 gap-3"
-                : "space-y-4"
-            )}
-          >
-            {userVideos.map((video, index) => (
-              <VideoCard
-                key={index}
-                {...video}
-                className={viewMode === "grid" ? "!p-0 [&>div:last-child]:p-3" : ""}
-              />
-            ))}
-          </div>
+          {videosLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : videos && videos.length > 0 ? (
+            <div
+              className={cn(
+                viewMode === "grid"
+                  ? "grid grid-cols-2 gap-3"
+                  : "space-y-4"
+              )}
+            >
+              {videos.map((video) => (
+                <VideoCard
+                  key={video.id}
+                  thumbnail={video.thumbnail_url || "/placeholder.svg"}
+                  title={video.title}
+                  views="-"
+                  likes="-"
+                  comments="-"
+                  platforms={[]}
+                  date={formatDistanceToNow(new Date(video.created_at), {
+                    addSuffix: true,
+                    locale: ptBR,
+                  })}
+                  className={viewMode === "grid" ? "!p-0 [&>div:last-child]:p-3" : ""}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="card-elevated p-8 text-center">
+              <Video className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-muted-foreground">Nenhum vídeo ainda</p>
+              <Button
+                variant="gradient"
+                size="sm"
+                className="mt-4"
+                onClick={() => navigate("/upload")}
+              >
+                Fazer Upload
+              </Button>
+            </div>
+          )}
         </section>
 
         {/* Logout Button */}
-        <Button variant="ghost" className="w-full text-destructive hover:text-destructive hover:bg-destructive/10">
+        <Button
+          variant="ghost"
+          className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+          onClick={handleLogout}
+        >
           <LogOut className="w-4 h-4" />
           Sair da Conta
         </Button>
