@@ -1,11 +1,15 @@
 import { useState, useRef } from "react";
-import { Upload as UploadIcon, X, Play, Scissors, Type, Share2 } from "lucide-react";
+import { Upload as UploadIcon, X, Play, Scissors, Type, Share2, CalendarClock } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useScheduler } from "@/contexts/SchedulerContext";
+import { DateTimePicker } from "@/components/scheduler/DateTimePicker";
 import {
   InstagramIcon,
   TikTokIcon,
@@ -28,8 +32,12 @@ export default function Upload() {
   const [description, setDescription] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["instagram", "tiktok"]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { addScheduledPost } = useScheduler();
+  const navigate = useNavigate();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -64,14 +72,14 @@ export default function Upload() {
     );
   };
 
-  const handlePublish = () => {
+  const validateForm = () => {
     if (!videoFile) {
       toast({
         title: "Nenhum vídeo selecionado",
         description: "Faça upload de um vídeo para continuar.",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     if (!title.trim()) {
@@ -80,7 +88,7 @@ export default function Upload() {
         description: "Adicione um título ao seu vídeo.",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     if (selectedPlatforms.length === 0) {
@@ -89,22 +97,79 @@ export default function Upload() {
         description: "Escolha pelo menos uma rede social.",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
+    if (isScheduled && !scheduledDate) {
+      toast({
+        title: "Data obrigatória",
+        description: "Selecione uma data e hora para agendar.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (isScheduled && scheduledDate) {
+      const minDate = new Date();
+      minDate.setMinutes(minDate.getMinutes() + 5);
+      if (scheduledDate < minDate) {
+        toast({
+          title: "Data inválida",
+          description: "A data deve ser pelo menos 5 minutos no futuro.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const handlePublish = () => {
+    if (!validateForm()) return;
+
     setIsUploading(true);
-    setTimeout(() => {
+
+    if (isScheduled && scheduledDate && videoFile) {
+      // Schedule the post
+      addScheduledPost({
+        videoFile: videoPreview || "",
+        videoName: videoFile.name,
+        title,
+        description,
+        platforms: selectedPlatforms,
+        scheduledDate,
+      });
+
       setIsUploading(false);
       toast({
-        title: "Vídeo publicado! 🎉",
-        description: `Publicado em ${selectedPlatforms.length} plataforma(s).`,
+        title: "Vídeo agendado! 📅",
+        description: `Será publicado em ${selectedPlatforms.length} plataforma(s).`,
       });
-      // Reset form
-      setVideoFile(null);
-      setVideoPreview(null);
-      setTitle("");
-      setDescription("");
-    }, 2000);
+      
+      // Reset form and redirect
+      resetForm();
+      navigate("/scheduled");
+    } else {
+      // Publish now (simulate)
+      setTimeout(() => {
+        setIsUploading(false);
+        toast({
+          title: "Vídeo publicado! 🎉",
+          description: `Publicado em ${selectedPlatforms.length} plataforma(s).`,
+        });
+        resetForm();
+      }, 2000);
+    }
+  };
+
+  const resetForm = () => {
+    setVideoFile(null);
+    setVideoPreview(null);
+    setTitle("");
+    setDescription("");
+    setIsScheduled(false);
+    setScheduledDate(undefined);
   };
 
   const clearVideo = () => {
@@ -254,6 +319,30 @@ export default function Upload() {
           </div>
         </div>
 
+        {/* Schedule Toggle */}
+        <div className="card-elevated p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <CalendarClock className="w-5 h-5 text-primary" />
+              <div>
+                <p className="font-medium text-foreground">Agendar publicação</p>
+                <p className="text-sm text-muted-foreground">
+                  Escolha quando publicar
+                </p>
+              </div>
+            </div>
+            <Switch checked={isScheduled} onCheckedChange={setIsScheduled} />
+          </div>
+
+          {isScheduled && (
+            <DateTimePicker
+              value={scheduledDate}
+              onChange={setScheduledDate}
+              minDate={new Date()}
+            />
+          )}
+        </div>
+
         {/* Publish Button */}
         <Button
           variant="gradient"
@@ -265,12 +354,21 @@ export default function Upload() {
           {isUploading ? (
             <>
               <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-              Publicando...
+              {isScheduled ? "Agendando..." : "Publicando..."}
             </>
           ) : (
             <>
-              <Share2 className="w-5 h-5" />
-              Publicar Agora
+              {isScheduled ? (
+                <>
+                  <CalendarClock className="w-5 h-5" />
+                  Agendar Publicação
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-5 h-5" />
+                  Publicar Agora
+                </>
+              )}
             </>
           )}
         </Button>
