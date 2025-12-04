@@ -1,7 +1,7 @@
 import { Home, Upload, BarChart3, User, CalendarClock } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { useScheduler } from "@/contexts/SchedulerContext";
+import { usePendingPostsCount } from "@/hooks/useScheduledPosts";
 
 const navItems = [
   { icon: Home, label: "Início", path: "/" },
@@ -12,8 +12,7 @@ const navItems = [
 ];
 
 export function BottomNav() {
-  const { getPendingCount } = useScheduler();
-  const pendingCount = getPendingCount();
+  const pendingCount = usePendingPostsCount();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border/50 safe-area-bottom">

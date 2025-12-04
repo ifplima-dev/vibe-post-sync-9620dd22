@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Upload as UploadIcon, X, Play, Scissors, Type, Share2, CalendarClock } from "lucide-react";
+import { Upload as UploadIcon, X, Play, Scissors, Type, Share2, CalendarClock, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { useScheduler } from "@/contexts/SchedulerContext";
+import { useConnectedAccounts } from "@/hooks/useConnectedAccounts";
+import { useCreateScheduledPost } from "@/hooks/useScheduledPosts";
+import { useUploadVideo, useCreateVideo } from "@/hooks/useVideos";
 import { DateTimePicker } from "@/components/scheduler/DateTimePicker";
 import {
   InstagramIcon,
@@ -18,26 +20,30 @@ import {
 } from "@/components/icons/SocialIcons";
 import { cn } from "@/lib/utils";
 
-const platforms = [
-  { id: "instagram", name: "Instagram", icon: InstagramIcon, connected: true },
-  { id: "tiktok", name: "TikTok", icon: TikTokIcon, connected: true },
-  { id: "youtube", name: "YouTube", icon: YouTubeIcon, connected: false },
-  { id: "facebook", name: "Facebook", icon: FacebookIcon, connected: false },
-];
+const platformIcons: Record<string, typeof InstagramIcon> = {
+  instagram: InstagramIcon,
+  tiktok: TikTokIcon,
+  youtube: YouTubeIcon,
+  facebook: FacebookIcon,
+};
 
 export default function Upload() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["instagram", "tiktok"]);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const { addScheduledPost } = useScheduler();
   const navigate = useNavigate();
+
+  const { data: accounts, isLoading: accountsLoading } = useConnectedAccounts();
+  const createScheduledPost = useCreateScheduledPost();
+  const uploadVideo = useUploadVideo();
+  const createVideo = useCreateVideo();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -125,41 +131,61 @@ export default function Upload() {
     return true;
   };
 
-  const handlePublish = () => {
-    if (!validateForm()) return;
+  const handlePublish = async () => {
+    if (!validateForm() || !videoFile) return;
 
     setIsUploading(true);
 
-    if (isScheduled && scheduledDate && videoFile) {
-      // Schedule the post
-      addScheduledPost({
-        videoFile: videoPreview || "",
-        videoName: videoFile.name,
-        title,
-        description,
-        platforms: selectedPlatforms,
-        scheduledDate,
-      });
+    try {
+      // Upload video to storage
+      const fileUrl = await uploadVideo.mutateAsync(videoFile);
 
-      setIsUploading(false);
-      toast({
-        title: "Vídeo agendado! 📅",
-        description: `Será publicado em ${selectedPlatforms.length} plataforma(s).`,
-      });
-      
-      // Reset form and redirect
-      resetForm();
-      navigate("/scheduled");
-    } else {
-      // Publish now (simulate)
-      setTimeout(() => {
-        setIsUploading(false);
+      if (isScheduled && scheduledDate) {
+        // Create scheduled post
+        await createScheduledPost.mutateAsync({
+          video_file_url: fileUrl,
+          video_name: videoFile.name,
+          title,
+          description: description || null,
+          platforms: selectedPlatforms,
+          scheduled_date: scheduledDate.toISOString(),
+          video_id: null,
+        });
+
+        toast({
+          title: "Vídeo agendado! 📅",
+          description: `Será publicado em ${selectedPlatforms.length} plataforma(s).`,
+        });
+        
+        resetForm();
+        navigate("/scheduled");
+      } else {
+        // Create video record (publish now)
+        await createVideo.mutateAsync({
+          file_url: fileUrl,
+          title,
+          description: description || null,
+          thumbnail_url: null,
+          duration: null,
+          status: "published",
+        });
+
         toast({
           title: "Vídeo publicado! 🎉",
           description: `Publicado em ${selectedPlatforms.length} plataforma(s).`,
         });
+        
         resetForm();
-      }, 2000);
+        navigate("/profile");
+      }
+    } catch (error) {
+      toast({
+        title: "Erro ao publicar",
+        description: "Ocorreu um erro. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -168,6 +194,7 @@ export default function Upload() {
     setVideoPreview(null);
     setTitle("");
     setDescription("");
+    setSelectedPlatforms([]);
     setIsScheduled(false);
     setScheduledDate(undefined);
   };
@@ -296,27 +323,36 @@ export default function Upload() {
             <Share2 className="w-4 h-4" />
             Publicar em
           </label>
-          <div className="grid grid-cols-2 gap-3">
-            {platforms.map((platform) => (
-              <button
-                key={platform.id}
-                onClick={() => platform.connected && handlePlatformToggle(platform.id)}
-                disabled={!platform.connected}
-                className={cn(
-                  "card-elevated p-4 flex items-center gap-3 transition-all duration-300",
-                  selectedPlatforms.includes(platform.id) && "border-primary glow",
-                  !platform.connected && "opacity-50 cursor-not-allowed"
-                )}
-              >
-                <Checkbox
-                  checked={selectedPlatforms.includes(platform.id)}
-                  disabled={!platform.connected}
-                />
-                <platform.icon className="w-5 h-5" />
-                <span className="text-sm font-medium">{platform.name}</span>
-              </button>
-            ))}
-          </div>
+          {accountsLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {accounts?.map((account) => {
+                const Icon = platformIcons[account.platform];
+                return (
+                  <button
+                    key={account.id}
+                    onClick={() => account.is_connected && handlePlatformToggle(account.platform)}
+                    disabled={!account.is_connected}
+                    className={cn(
+                      "card-elevated p-4 flex items-center gap-3 transition-all duration-300",
+                      selectedPlatforms.includes(account.platform) && "border-primary glow",
+                      !account.is_connected && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    <Checkbox
+                      checked={selectedPlatforms.includes(account.platform)}
+                      disabled={!account.is_connected}
+                    />
+                    <Icon className="w-5 h-5" />
+                    <span className="text-sm font-medium capitalize">{account.platform}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Schedule Toggle */}
@@ -353,7 +389,7 @@ export default function Upload() {
         >
           {isUploading ? (
             <>
-              <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+              <Loader2 className="w-5 h-5 animate-spin" />
               {isScheduled ? "Agendando..." : "Publicando..."}
             </>
           ) : (
