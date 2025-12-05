@@ -14,16 +14,67 @@ export type Database = {
   }
   public: {
     Tables: {
+      comments: {
+        Row: {
+          author_name: string | null
+          author_profile_pic: string | null
+          comment_text: string
+          created_at: string
+          id: string
+          is_hidden: boolean
+          platform: string
+          platform_comment_id: string
+          post_id: string
+          replied: boolean
+          reply_text: string | null
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          author_name?: string | null
+          author_profile_pic?: string | null
+          comment_text: string
+          created_at?: string
+          id?: string
+          is_hidden?: boolean
+          platform: string
+          platform_comment_id: string
+          post_id: string
+          replied?: boolean
+          reply_text?: string | null
+          synced_at?: string
+          user_id: string
+        }
+        Update: {
+          author_name?: string | null
+          author_profile_pic?: string | null
+          comment_text?: string
+          created_at?: string
+          id?: string
+          is_hidden?: boolean
+          platform?: string
+          platform_comment_id?: string
+          post_id?: string
+          replied?: boolean
+          reply_text?: string | null
+          synced_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       connected_accounts: {
         Row: {
           access_token: string | null
           connected_at: string | null
           created_at: string
           id: string
+          instagram_account_id: string | null
           is_connected: boolean
+          page_id: string | null
           platform: string
           platform_username: string | null
           refresh_token: string | null
+          token_expires_at: string | null
           user_id: string
         }
         Insert: {
@@ -31,10 +82,13 @@ export type Database = {
           connected_at?: string | null
           created_at?: string
           id?: string
+          instagram_account_id?: string | null
           is_connected?: boolean
+          page_id?: string | null
           platform: string
           platform_username?: string | null
           refresh_token?: string | null
+          token_expires_at?: string | null
           user_id: string
         }
         Update: {
@@ -42,10 +96,13 @@ export type Database = {
           connected_at?: string | null
           created_at?: string
           id?: string
+          instagram_account_id?: string | null
           is_connected?: boolean
+          page_id?: string | null
           platform?: string
           platform_username?: string | null
           refresh_token?: string | null
+          token_expires_at?: string | null
           user_id?: string
         }
         Relationships: []
