@@ -1,1 +1,13 @@
 project_id = "czzuabqrtrostojxsxwb"
+
+[functions.meta-auth-url]
+verify_jwt = false
+
+[functions.meta-oauth]
+verify_jwt = false
+
+[functions.meta-publish]
+verify_jwt = false
+
+[functions.meta-comments]
+verify_jwt = false

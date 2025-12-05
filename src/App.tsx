@@ -11,6 +11,7 @@ import Analytics from "./pages/Analytics";
 import Profile from "./pages/Profile";
 import Scheduled from "./pages/Scheduled";
 import Auth from "./pages/Auth";
+import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,14 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route
+              path="/auth/callback"
+              element={
+                <ProtectedRoute>
+                  <AuthCallback />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/"
               element={
