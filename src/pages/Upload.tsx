@@ -13,6 +13,8 @@ import { useCreateScheduledPost } from "@/hooks/useScheduledPosts";
 import { useUploadVideo, useCreateVideo } from "@/hooks/useVideos";
 import { DateTimePicker } from "@/components/scheduler/DateTimePicker";
 import { compressImage, compressImages } from "@/hooks/useImageCompression";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   InstagramIcon,
   TikTokIcon,
@@ -54,6 +56,7 @@ export default function Upload() {
   const navigate = useNavigate();
 
   const { data: accounts, isLoading: accountsLoading } = useConnectedAccounts();
+  const { user } = useAuth();
   const createScheduledPost = useCreateScheduledPost();
   const uploadVideo = useUploadVideo();
   const createVideo = useCreateVideo();
@@ -366,7 +369,29 @@ export default function Upload() {
         resetForm();
         navigate("/scheduled");
       } else {
-        // Create video record (publish now)
+        // Publish immediately to each platform
+        const caption = title + (description ? "\n\n" + description : "");
+        
+        for (const platform of selectedPlatforms) {
+          const { data, error } = await supabase.functions.invoke("meta-publish", {
+            body: {
+              userId: user?.id,
+              platform,
+              videoUrl: primaryUrl,
+              mediaUrls: uploadedUrls.length > 1 ? uploadedUrls : undefined,
+              caption,
+              mediaType,
+            },
+          });
+
+          if (error) {
+            console.error(`Error publishing to ${platform}:`, error);
+            throw new Error(`Erro ao publicar em ${platform}`);
+          }
+          console.log(`Published to ${platform}:`, data);
+        }
+
+        // Create video record for history
         await createVideo.mutateAsync({
           file_url: primaryUrl,
           title,

@@ -11,7 +11,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // Image file extensions
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
 
-function getMediaType(fileUrl: string): "video" | "image" {
+function getMediaTypeFromUrl(fileUrl: string): "video" | "image" {
   const lowerUrl = fileUrl.toLowerCase();
   return IMAGE_EXTENSIONS.some(ext => lowerUrl.includes(ext)) ? "image" : "video";
 }
@@ -53,9 +53,13 @@ Deno.serve(async (req) => {
     for (const post of pendingPosts) {
       console.log(`📤 Processing post ${post.id}: "${post.title}"`);
       
-      // Detect media type from file URL
-      const mediaType = getMediaType(post.video_file_url);
-      console.log(`  → Media type: ${mediaType}`);
+      // Use media_type from DB if available, otherwise detect from URL
+      const mediaType = post.media_type || getMediaTypeFromUrl(post.video_file_url);
+      
+      // Check if it's a carousel (multiple media_urls)
+      const isCarousel = post.media_urls && Array.isArray(post.media_urls) && post.media_urls.length > 1;
+      
+      console.log(`  → Media type: ${mediaType}, Carousel: ${isCarousel}, URLs: ${isCarousel ? post.media_urls.length : 1}`);
       
       // Update status to publishing
       await supabase
@@ -74,6 +78,7 @@ Deno.serve(async (req) => {
             post.user_id,
             platform,
             post.video_file_url,
+            isCarousel ? post.media_urls : null,
             post.title + (post.description ? "\n\n" + post.description : ""),
             mediaType
           );
@@ -126,7 +131,8 @@ async function publishToMeta(
   supabaseClient: any,
   userId: string,
   platform: string,
-  mediaUrl: string,
+  primaryUrl: string,
+  mediaUrls: string[] | null,
   caption: string,
   mediaType: "video" | "image"
 ) {
@@ -152,14 +158,25 @@ async function publishToMeta(
   const pageId = typedAccount.page_id;
   const instagramAccountId = typedAccount.instagram_account_id;
 
+  // Check if it's a carousel
+  const isCarousel = mediaUrls && mediaUrls.length > 1 && mediaType === "image";
+
   if (platform === "instagram") {
-    return mediaType === "image"
-      ? await publishImageToInstagram(instagramAccountId!, accessToken, mediaUrl, caption)
-      : await publishVideoToInstagram(instagramAccountId!, accessToken, mediaUrl, caption);
+    if (isCarousel) {
+      return await publishCarouselToInstagram(instagramAccountId!, accessToken, mediaUrls, caption);
+    } else if (mediaType === "image") {
+      return await publishImageToInstagram(instagramAccountId!, accessToken, primaryUrl, caption);
+    } else {
+      return await publishVideoToInstagram(instagramAccountId!, accessToken, primaryUrl, caption);
+    }
   } else if (platform === "facebook") {
-    return mediaType === "image"
-      ? await publishImageToFacebook(pageId!, accessToken, mediaUrl, caption)
-      : await publishVideoToFacebook(pageId!, accessToken, mediaUrl, caption);
+    if (isCarousel) {
+      return await publishCarouselToFacebook(pageId!, accessToken, mediaUrls, caption);
+    } else if (mediaType === "image") {
+      return await publishImageToFacebook(pageId!, accessToken, primaryUrl, caption);
+    } else {
+      return await publishVideoToFacebook(pageId!, accessToken, primaryUrl, caption);
+    }
   } else {
     throw new Error(`Platform ${platform} not supported`);
   }
@@ -343,4 +360,156 @@ async function publishImageToFacebook(
   }
 
   return { success: true, postId: uploadData.id, platform: "facebook" };
+}
+
+// ============= CAROUSEL PUBLISHING =============
+
+async function publishCarouselToInstagram(
+  instagramAccountId: string,
+  accessToken: string,
+  imageUrls: string[],
+  caption: string
+) {
+  console.log(`    Publishing carousel with ${imageUrls.length} images to Instagram...`);
+  
+  // Step 1: Create a container for each image (as carousel item)
+  const childContainerIds: string[] = [];
+  
+  for (let i = 0; i < imageUrls.length; i++) {
+    const imageUrl = imageUrls[i];
+    console.log(`    Creating carousel item ${i + 1}/${imageUrls.length}...`);
+    
+    const containerUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+    const containerParams = new URLSearchParams({
+      image_url: imageUrl,
+      is_carousel_item: "true",
+      access_token: accessToken,
+    });
+
+    const containerResponse = await fetch(containerUrl, {
+      method: "POST",
+      body: containerParams,
+    });
+    const containerData = await containerResponse.json();
+
+    if (containerData.error) {
+      console.error(`    Error creating carousel item ${i + 1}:`, containerData.error);
+      throw new Error(containerData.error.message);
+    }
+
+    childContainerIds.push(containerData.id);
+    console.log(`    Carousel item ${i + 1} created:`, containerData.id);
+  }
+
+  // Step 2: Create the carousel container with all children
+  console.log("    Creating carousel container...");
+  const carouselUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+  const carouselParams = new URLSearchParams({
+    media_type: "CAROUSEL",
+    children: childContainerIds.join(","),
+    caption: caption || "",
+    access_token: accessToken,
+  });
+
+  const carouselResponse = await fetch(carouselUrl, {
+    method: "POST",
+    body: carouselParams,
+  });
+  const carouselData = await carouselResponse.json();
+
+  if (carouselData.error) {
+    console.error("    Error creating carousel container:", carouselData.error);
+    throw new Error(carouselData.error.message);
+  }
+
+  const carouselId = carouselData.id;
+  console.log("    Carousel container created:", carouselId);
+
+  // Step 3: Publish the carousel
+  const publishUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media_publish`;
+  const publishParams = new URLSearchParams({
+    creation_id: carouselId,
+    access_token: accessToken,
+  });
+
+  console.log("    Publishing Instagram carousel...");
+  const publishResponse = await fetch(publishUrl, {
+    method: "POST",
+    body: publishParams,
+  });
+  const publishData = await publishResponse.json();
+
+  if (publishData.error) {
+    console.error("    Error publishing carousel:", publishData.error);
+    throw new Error(publishData.error.message);
+  }
+
+  console.log("    Instagram carousel publish success:", publishData.id);
+  return { success: true, postId: publishData.id, platform: "instagram" };
+}
+
+async function publishCarouselToFacebook(
+  pageId: string,
+  accessToken: string,
+  imageUrls: string[],
+  caption: string
+) {
+  console.log(`    Publishing carousel with ${imageUrls.length} images to Facebook...`);
+  
+  // Step 1: Upload each photo with published=false to get photo IDs
+  const photoIds: string[] = [];
+  
+  for (let i = 0; i < imageUrls.length; i++) {
+    const imageUrl = imageUrls[i];
+    console.log(`    Uploading photo ${i + 1}/${imageUrls.length}...`);
+    
+    const uploadUrl = `https://graph.facebook.com/v19.0/${pageId}/photos`;
+    const uploadParams = new URLSearchParams({
+      url: imageUrl,
+      published: "false",
+      access_token: accessToken,
+    });
+
+    const uploadResponse = await fetch(uploadUrl, {
+      method: "POST",
+      body: uploadParams,
+    });
+    const uploadData = await uploadResponse.json();
+
+    if (uploadData.error) {
+      console.error(`    Error uploading photo ${i + 1}:`, uploadData.error);
+      throw new Error(uploadData.error.message);
+    }
+
+    photoIds.push(uploadData.id);
+    console.log(`    Photo ${i + 1} uploaded:`, uploadData.id);
+  }
+
+  // Step 2: Create a feed post with all photos attached
+  console.log("    Creating Facebook multi-photo post...");
+  const feedUrl = `https://graph.facebook.com/v19.0/${pageId}/feed`;
+  
+  // Build the attached_media parameter
+  const attachedMedia = photoIds.map(id => ({ media_fbid: id }));
+  
+  const feedResponse = await fetch(feedUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message: caption || "",
+      attached_media: attachedMedia,
+      access_token: accessToken,
+    }),
+  });
+  const feedData = await feedResponse.json();
+
+  if (feedData.error) {
+    console.error("    Error creating multi-photo post:", feedData.error);
+    throw new Error(feedData.error.message);
+  }
+
+  console.log("    Facebook carousel publish success:", feedData.id);
+  return { success: true, postId: feedData.id, platform: "facebook" };
 }
