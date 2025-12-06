@@ -30,12 +30,13 @@ const platformIcons: Record<string, typeof InstagramIcon> = {
   facebook: FacebookIcon,
 };
 
-// File size limits
-const MAX_VIDEO_SIZE_MB = 100;
+// File size limits - Instagram supports up to 4GB but we limit to 1GB for practical upload
+const MAX_VIDEO_SIZE_MB = 1024; // 1GB - covers Reels (650MB) and most feed videos
 const MAX_IMAGE_SIZE_MB = 10;
 const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
 const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 const MAX_CAROUSEL_IMAGES = 10;
+const LARGE_FILE_WARNING_MB = 500; // Warn user about long upload times
 
 export default function Upload() {
   // Support for multiple files (carousel)
@@ -69,18 +70,19 @@ export default function Upload() {
     return file.type.startsWith("video/") ? "video" : "image";
   };
 
-  const validateFileSize = (file: File): { valid: boolean; error?: string } => {
+  const validateFileSize = (file: File): { valid: boolean; error?: string; isLarge?: boolean } => {
     const isVideo = file.type.startsWith("video/");
     const maxSize = isVideo ? MAX_VIDEO_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES;
     const maxSizeMB = isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
+    const fileSizeMB = file.size / (1024 * 1024);
     
     if (file.size > maxSize) {
       return {
         valid: false,
-        error: `O arquivo é muito grande. Máximo permitido: ${maxSizeMB}MB para ${isVideo ? 'vídeos' : 'imagens'}.`
+        error: `O arquivo é muito grande. Máximo permitido: ${isVideo ? '1GB' : maxSizeMB + 'MB'} para ${isVideo ? 'vídeos' : 'imagens'}.`
       };
     }
-    return { valid: true };
+    return { valid: true, isLarge: fileSizeMB > LARGE_FILE_WARNING_MB };
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,6 +123,7 @@ export default function Upload() {
     }
 
     // Validate all files
+    let hasLargeFile = false;
     for (const file of files) {
       if (!isValidMediaFile(file)) {
         toast({
@@ -140,6 +143,15 @@ export default function Upload() {
         });
         return;
       }
+      if (sizeValidation.isLarge) hasLargeFile = true;
+    }
+
+    // Warn about large files
+    if (hasLargeFile) {
+      toast({
+        title: "Arquivo grande detectado",
+        description: "O upload pode demorar alguns minutos. Por favor, aguarde.",
+      });
     }
 
     // Compress images if needed
@@ -202,6 +214,7 @@ export default function Upload() {
       return;
     }
 
+    let hasLargeFile = false;
     for (const file of files) {
       if (!isValidMediaFile(file)) {
         toast({
@@ -221,6 +234,14 @@ export default function Upload() {
         });
         return;
       }
+      if (sizeValidation.isLarge) hasLargeFile = true;
+    }
+
+    if (hasLargeFile) {
+      toast({
+        title: "Arquivo grande detectado",
+        description: "O upload pode demorar alguns minutos. Por favor, aguarde.",
+      });
     }
 
     let processedFiles = files;
