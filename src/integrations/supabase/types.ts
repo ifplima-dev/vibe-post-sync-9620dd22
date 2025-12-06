@@ -145,6 +145,8 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          media_type: string | null
+          media_urls: string[] | null
           platforms: string[]
           scheduled_date: string
           status: string
@@ -158,6 +160,8 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          media_type?: string | null
+          media_urls?: string[] | null
           platforms: string[]
           scheduled_date: string
           status?: string
@@ -171,6 +175,8 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          media_type?: string | null
+          media_urls?: string[] | null
           platforms?: string[]
           scheduled_date?: string
           status?: string

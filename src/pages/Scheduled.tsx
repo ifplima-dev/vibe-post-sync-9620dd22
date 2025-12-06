@@ -152,6 +152,8 @@ export default function Scheduled() {
                   scheduledDate: new Date(post.scheduled_date),
                   status: publishing === post.id ? "publishing" : post.status as "scheduled" | "publishing" | "published" | "failed",
                   createdAt: new Date(post.created_at),
+                  mediaUrls: post.media_urls || undefined,
+                  mediaType: (post.media_type as "video" | "image") || undefined,
                 }}
                 onPublishNow={handlePublishNow}
                 onCancel={handleCancel}

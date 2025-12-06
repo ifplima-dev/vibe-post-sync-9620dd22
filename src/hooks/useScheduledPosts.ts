@@ -14,6 +14,8 @@ export interface ScheduledPost {
   scheduled_date: string;
   status: "scheduled" | "publishing" | "published" | "failed";
   created_at: string;
+  media_urls: string[] | null;
+  media_type: string | null;
 }
 
 export function useScheduledPosts() {
