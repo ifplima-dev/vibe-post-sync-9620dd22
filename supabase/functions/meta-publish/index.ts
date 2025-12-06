@@ -305,7 +305,33 @@ async function publishImageToInstagram(
   const containerId = containerData.id;
   console.log("Image container created:", containerId);
 
-  // Step 2: Publish the container (images don't need async processing like videos)
+  // Step 2: Wait for image processing (images also need async processing)
+  let status = "IN_PROGRESS";
+  let attempts = 0;
+  const maxAttempts = 10; // 30 seconds max wait for images
+
+  while (status === "IN_PROGRESS" && attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+    
+    const statusUrl = `https://graph.facebook.com/${API_VERSION}/${containerId}?fields=status_code&access_token=${accessToken}`;
+    const statusResponse = await fetch(statusUrl);
+    const statusData = await statusResponse.json();
+    
+    if (statusData.error) {
+      console.error("Error checking image status:", statusData.error);
+      throw new Error(parseMetaError(statusData.error));
+    }
+    
+    status = statusData.status_code;
+    console.log("Image container status:", status, "attempt:", attempts + 1);
+    attempts++;
+  }
+
+  if (status !== "FINISHED") {
+    throw new Error(`Processamento da imagem falhou ou expirou. Status: ${status}`);
+  }
+
+  // Step 3: Publish the container
   const publishUrl = `https://graph.facebook.com/${API_VERSION}/${instagramAccountId}/media_publish`;
   const publishParams = new URLSearchParams({
     creation_id: containerId,
