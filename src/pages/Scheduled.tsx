@@ -6,13 +6,17 @@ import { Button } from "@/components/ui/button";
 import { ScheduledPostCard } from "@/components/scheduler/ScheduledPostCard";
 import { useScheduledPosts, useUpdateScheduledPost, useDeleteScheduledPost } from "@/hooks/useScheduledPosts";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 type FilterStatus = "all" | "scheduled" | "published" | "failed";
 
 export default function Scheduled() {
   const [filter, setFilter] = useState<FilterStatus>("all");
+  const [publishing, setPublishing] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { data: posts, isLoading } = useScheduledPosts();
   const updatePost = useUpdateScheduledPost();
@@ -26,11 +30,69 @@ export default function Scheduled() {
   const pendingCount = posts?.filter((p) => p.status === "scheduled").length || 0;
 
   const handlePublishNow = async (id: string) => {
-    await updatePost.mutateAsync({ id, updates: { status: "publishing" } });
-    toast({ title: "Publicando...", description: "Seu vídeo está sendo publicado." });
-    setTimeout(async () => {
-      await updatePost.mutateAsync({ id, updates: { status: "published" } });
-    }, 2000);
+    const post = posts?.find((p) => p.id === id);
+    if (!post || !user) return;
+
+    setPublishing(id);
+    
+    try {
+      // Update status to publishing
+      await updatePost.mutateAsync({ id, updates: { status: "publishing" } });
+      toast({ title: "Publicando...", description: "Seu vídeo está sendo publicado." });
+
+      let hasError = false;
+      const caption = post.title + (post.description ? "\n\n" + post.description : "");
+
+      // Publish to each platform
+      for (const platform of post.platforms) {
+        try {
+          const { data, error } = await supabase.functions.invoke("meta-publish", {
+            body: {
+              userId: user.id,
+              platform: platform,
+              videoUrl: post.video_file_url,
+              caption: caption,
+            },
+          });
+
+          if (error) {
+            console.error(`Error publishing to ${platform}:`, error);
+            hasError = true;
+          } else {
+            console.log(`Published to ${platform}:`, data);
+          }
+        } catch (error) {
+          console.error(`Error publishing to ${platform}:`, error);
+          hasError = true;
+        }
+      }
+
+      // Update final status
+      if (hasError) {
+        await updatePost.mutateAsync({ id, updates: { status: "failed" } });
+        toast({ 
+          title: "Erro na publicação", 
+          description: "Houve um problema ao publicar em algumas plataformas.", 
+          variant: "destructive" 
+        });
+      } else {
+        await updatePost.mutateAsync({ id, updates: { status: "published" } });
+        toast({ 
+          title: "Publicado!", 
+          description: "Seu vídeo foi publicado com sucesso." 
+        });
+      }
+    } catch (error) {
+      console.error("Error in handlePublishNow:", error);
+      await updatePost.mutateAsync({ id, updates: { status: "failed" } });
+      toast({ 
+        title: "Erro", 
+        description: "Falha ao publicar o vídeo.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setPublishing(null);
+    }
   };
 
   const handleCancel = async (id: string) => {
@@ -88,7 +150,7 @@ export default function Scheduled() {
                   description: post.description || "",
                   platforms: post.platforms,
                   scheduledDate: new Date(post.scheduled_date),
-                  status: post.status as "scheduled" | "publishing" | "published" | "failed",
+                  status: publishing === post.id ? "publishing" : post.status as "scheduled" | "publishing" | "published" | "failed",
                   createdAt: new Date(post.created_at),
                 }}
                 onPublishNow={handlePublishNow}
