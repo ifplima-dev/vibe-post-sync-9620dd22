@@ -192,7 +192,9 @@ serve(async (req) => {
 
     const { error: upsertError } = await supabase
       .from("connected_accounts")
-      .update({
+      .upsert({
+        user_id: userId,
+        platform: platform,
         access_token: pageAccessToken, // IMPORTANT: Save Page Token, not User Token
         page_id: finalPageId,
         instagram_account_id: platform === "instagram" ? finalInstagramAccountId : null,
@@ -200,9 +202,9 @@ serve(async (req) => {
         is_connected: true,
         connected_at: new Date().toISOString(),
         token_expires_at: expiresAt.toISOString(),
-      })
-      .eq("user_id", userId)
-      .eq("platform", platform);
+      }, {
+        onConflict: "user_id,platform",
+      });
 
     if (upsertError) {
       console.error("Database error:", upsertError);
