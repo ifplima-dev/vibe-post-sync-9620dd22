@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Upload as UploadIcon, X, Play, Scissors, Type, Share2, CalendarClock, Loader2, ChevronLeft, ChevronRight, Images } from "lucide-react";
+import { Upload as UploadIcon, X, Play, Scissors, Type, Share2, CalendarClock, Loader2, ChevronLeft, ChevronRight, Images, Square, RectangleVertical, Smartphone, Monitor } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,26 @@ const platformIcons: Record<string, typeof InstagramIcon> = {
   facebook: FacebookIcon,
 };
 
+// Instagram aspect ratios with dimensions
+type AspectRatioKey = "1:1" | "4:5" | "9:16" | "16:9";
+
+const ASPECT_RATIOS: Record<AspectRatioKey, { 
+  label: string; 
+  width: number; 
+  height: number; 
+  icon: typeof Square;
+  description: string;
+  tailwindClass: string;
+}> = {
+  "1:1": { label: "Quadrado", width: 1080, height: 1080, icon: Square, description: "Feed", tailwindClass: "aspect-square" },
+  "4:5": { label: "Vertical", width: 1080, height: 1350, icon: RectangleVertical, description: "Feed", tailwindClass: "aspect-[4/5]" },
+  "9:16": { label: "Reels", width: 1080, height: 1920, icon: Smartphone, description: "Stories", tailwindClass: "aspect-[9/16]" },
+  "16:9": { label: "Paisagem", width: 1920, height: 1080, icon: Monitor, description: "Horizontal", tailwindClass: "aspect-video" },
+};
+
+// Caption limits for Instagram
+const MAX_CAPTION_LENGTH = 2200;
+
 // File size limits - Instagram supports up to 4GB but we limit to 1GB for practical upload
 const MAX_VIDEO_SIZE_MB = 1024; // 1GB - covers Reels (650MB) and most feed videos
 const MAX_IMAGE_SIZE_MB = 10;
@@ -45,6 +65,7 @@ export default function Upload() {
   const [mediaType, setMediaType] = useState<"video" | "image" | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [selectedRatio, setSelectedRatio] = useState<AspectRatioKey>("1:1");
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -53,6 +74,9 @@ export default function Upload() {
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Calculate total caption length
+  const captionLength = title.length + (description ? 2 + description.length : 0); // +2 for "\n\n"
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -446,6 +470,7 @@ export default function Upload() {
     setMediaPreviews([]);
     setMediaType(null);
     setCarouselIndex(0);
+    setSelectedRatio("1:1");
     setTitle("");
     setDescription("");
     setSelectedPlatforms([]);
@@ -491,7 +516,14 @@ export default function Upload() {
         >
           {mediaPreviews.length > 0 ? (
             <div className="flex justify-center p-4">
-              <div className="relative w-full max-w-sm aspect-square rounded-xl overflow-hidden bg-black/50">
+              <div 
+                className={cn(
+                  "relative w-full rounded-xl overflow-hidden bg-black/50 transition-all duration-300",
+                  selectedRatio === "9:16" ? "max-w-[200px]" : "max-w-sm",
+                  ASPECT_RATIOS[selectedRatio].tailwindClass
+                )}
+                style={{ maxHeight: selectedRatio === "9:16" ? "400px" : "350px" }}
+              >
                 {mediaType === "video" ? (
                   <video
                     src={mediaPreviews[0]}
@@ -501,15 +533,27 @@ export default function Upload() {
                 ) : (
                   <img
                     src={mediaPreviews[carouselIndex]}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                     alt="Preview"
                   />
+                )}
+
+                {/* Safe zone indicator for Reels/Stories (9:16) */}
+                {selectedRatio === "9:16" && (
+                  <>
+                    <div className="absolute inset-x-0 top-0 h-[12%] bg-black/40 pointer-events-none flex items-center justify-center">
+                      <span className="text-[10px] text-white/60">Zona de corte</span>
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 h-[15%] bg-black/40 pointer-events-none flex items-center justify-center">
+                      <span className="text-[10px] text-white/60">Zona de corte</span>
+                    </div>
+                  </>
                 )}
                 
                 {/* Close button */}
                 <button
                   onClick={clearMedia}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-destructive transition-colors"
+                  className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-destructive transition-colors z-10"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -520,20 +564,20 @@ export default function Upload() {
                     <button
                       onClick={() => setCarouselIndex(i => Math.max(0, i - 1))}
                       disabled={carouselIndex === 0}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 transition-all"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 transition-all z-10"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => setCarouselIndex(i => Math.min(mediaPreviews.length - 1, i + 1))}
                       disabled={carouselIndex === mediaPreviews.length - 1}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 transition-all"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 transition-all z-10"
                     >
                       <ChevronRight className="w-4 h-4" />
                     </button>
                     
                     {/* Carousel counter */}
-                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-full bg-background/80 backdrop-blur-sm flex items-center gap-1.5 text-xs">
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-full bg-background/80 backdrop-blur-sm flex items-center gap-1.5 text-xs z-10">
                       <Images className="w-3 h-3" />
                       <span className="font-medium">{carouselIndex + 1}/{mediaPreviews.length}</span>
                     </div>
@@ -541,7 +585,7 @@ export default function Upload() {
                     {/* Remove current image */}
                     <button
                       onClick={() => removeImage(carouselIndex)}
-                      className="absolute top-2 left-2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-destructive transition-colors"
+                      className="absolute top-2 left-2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-destructive transition-colors z-10"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -550,7 +594,7 @@ export default function Upload() {
                 
                 {/* Quick actions - only for videos */}
                 {mediaType === "video" && (
-                  <div className="absolute bottom-2 left-2 right-2 flex gap-2">
+                  <div className="absolute bottom-2 left-2 right-2 flex gap-2 z-10">
                     <Button variant="glass" size="sm" className="flex-1 h-8 text-xs" onClick={handleCutVideo}>
                       <Scissors className="w-3 h-3" />
                       Cortar
@@ -636,6 +680,41 @@ export default function Upload() {
           </div>
         )}
 
+        {/* Aspect Ratio Selector */}
+        {mediaPreviews.length > 0 && (
+          <div>
+            <label className="text-sm font-medium text-foreground mb-3 block">
+              Formato
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {(Object.entries(ASPECT_RATIOS) as [AspectRatioKey, typeof ASPECT_RATIOS["1:1"]][]).map(([key, ratio]) => {
+                const Icon = ratio.icon;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setSelectedRatio(key)}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all",
+                      selectedRatio === key 
+                        ? "border-primary bg-primary/10" 
+                        : "border-border bg-secondary/30 hover:border-primary/50"
+                    )}
+                  >
+                    <Icon className={cn("w-5 h-5", selectedRatio === key ? "text-primary" : "text-muted-foreground")} />
+                    <span className={cn("text-xs font-medium", selectedRatio === key ? "text-primary" : "text-muted-foreground")}>
+                      {key}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">{ratio.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2 text-center">
+              {ASPECT_RATIOS[selectedRatio].width} × {ASPECT_RATIOS[selectedRatio].height}px
+            </p>
+          </div>
+        )}
+
         {/* Video Details */}
         <div className="space-y-4">
           <div>
@@ -647,11 +726,8 @@ export default function Upload() {
               placeholder="Adicione um título chamativo..."
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              maxLength={100}
+              maxLength={150}
             />
-            <p className="text-xs text-muted-foreground mt-1 text-right">
-              {title.length}/100
-            </p>
           </div>
 
           <div>
@@ -661,13 +737,30 @@ export default function Upload() {
             <Textarea
               placeholder="Descreva seu conteúdo, adicione hashtags..."
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                const newDesc = e.target.value;
+                const newTotal = title.length + (newDesc ? 2 + newDesc.length : 0);
+                if (newTotal <= MAX_CAPTION_LENGTH) {
+                  setDescription(newDesc);
+                }
+              }}
               rows={3}
-              maxLength={500}
             />
-            <p className="text-xs text-muted-foreground mt-1 text-right">
-              {description.length}/500
-            </p>
+            <div className="flex justify-between items-center mt-1">
+              <p className="text-xs text-muted-foreground">
+                Título + Descrição
+              </p>
+              <p className={cn(
+                "text-xs",
+                captionLength > MAX_CAPTION_LENGTH - 200 
+                  ? captionLength > MAX_CAPTION_LENGTH - 50 
+                    ? "text-destructive font-medium" 
+                    : "text-yellow-500"
+                  : "text-muted-foreground"
+              )}>
+                {captionLength.toLocaleString()} / {MAX_CAPTION_LENGTH.toLocaleString()}
+              </p>
+            </div>
           </div>
         </div>
 
