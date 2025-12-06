@@ -6,6 +6,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const API_VERSION = "v21.0";
+
+// Required permissions for publishing
+const REQUIRED_PERMISSIONS = {
+  instagram: ["instagram_basic", "instagram_content_publish", "pages_read_engagement", "pages_show_list"],
+  facebook: ["pages_manage_posts", "pages_read_engagement", "pages_show_list"],
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -16,24 +24,17 @@ serve(async (req) => {
 
     console.log("Received manual token data:", { userId, platform, pageId, instagramAccountId });
 
-    if (!userId || !platform || !accessToken || !pageId) {
+    if (!userId || !platform || !accessToken) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
+        JSON.stringify({ error: "Campos obrigatórios faltando (userId, platform, accessToken)" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (platform === "instagram" && !instagramAccountId) {
-      return new Response(
-        JSON.stringify({ error: "Instagram Account ID is required for Instagram" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Validate token using debug_token endpoint (requires only basic access)
+    // Step 1: Validate token and check permissions using debug_token endpoint
     console.log("Validating token with Graph API debug endpoint...");
     
-    const debugUrl = `https://graph.facebook.com/v21.0/debug_token?input_token=${accessToken}&access_token=${accessToken}`;
+    const debugUrl = `https://graph.facebook.com/${API_VERSION}/debug_token?input_token=${accessToken}&access_token=${accessToken}`;
     const debugResponse = await fetch(debugUrl);
     const debugData = await debugResponse.json();
 
@@ -55,68 +56,146 @@ serve(async (req) => {
 
     console.log("Token validated successfully. Scopes:", debugData.data.scopes);
 
+    // Step 2: Check for required permissions
+    const tokenScopes = debugData.data.scopes || [];
+    const requiredScopes = REQUIRED_PERMISSIONS[platform as keyof typeof REQUIRED_PERMISSIONS] || [];
+    const missingScopes = requiredScopes.filter(scope => !tokenScopes.includes(scope));
+
+    if (missingScopes.length > 0) {
+      console.error("Missing required permissions:", missingScopes);
+      return new Response(
+        JSON.stringify({ 
+          error: `Permissões insuficientes. Faltando: ${missingScopes.join(", ")}. Gere um novo token com todas as permissões necessárias.` 
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Step 3: Get list of pages to find the correct Page Access Token
+    console.log("Fetching user's Facebook pages...");
+    const pagesUrl = `https://graph.facebook.com/${API_VERSION}/me/accounts?access_token=${accessToken}`;
+    const pagesResponse = await fetch(pagesUrl);
+    const pagesData = await pagesResponse.json();
+
+    if (pagesData.error) {
+      console.error("Error fetching pages:", pagesData.error);
+      return new Response(
+        JSON.stringify({ error: `Erro ao buscar páginas: ${pagesData.error.message}` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!pagesData.data || pagesData.data.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Nenhuma página do Facebook encontrada. Verifique se você é administrador de uma página." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Found ${pagesData.data.length} pages`);
+
+    // Find the correct page and get its access token
+    let selectedPage = null;
+    let pageAccessToken = accessToken; // Default to user token if no page specified
+    let finalPageId = pageId;
+    let finalInstagramAccountId = instagramAccountId;
     let platformUsername = null;
 
-    // Try to get Instagram username if platform is instagram
-    if (platform === "instagram" && instagramAccountId) {
-      console.log("Fetching Instagram account info...");
+    if (pageId) {
+      // User specified a page ID, find it
+      selectedPage = pagesData.data.find((page: { id: string }) => page.id === pageId);
+      if (!selectedPage) {
+        // List available pages for the user
+        const availablePages = pagesData.data.map((p: { name: string; id: string }) => `${p.name} (${p.id})`).join(", ");
+        return new Response(
+          JSON.stringify({ 
+            error: `Page ID não encontrado. Páginas disponíveis: ${availablePages}` 
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // No page specified, use the first one
+      selectedPage = pagesData.data[0];
+      finalPageId = selectedPage.id;
+      console.log(`No page ID specified, using first page: ${selectedPage.name} (${selectedPage.id})`);
+    }
+
+    // Get the Page Access Token (this is crucial for publishing)
+    pageAccessToken = selectedPage.access_token;
+    console.log(`Using Page Access Token for page: ${selectedPage.name}`);
+
+    // Step 4: For Instagram, find the linked Instagram Business Account
+    if (platform === "instagram") {
+      console.log("Fetching Instagram Business Account linked to page...");
+      
+      const igUrl = `https://graph.facebook.com/${API_VERSION}/${finalPageId}?fields=instagram_business_account&access_token=${pageAccessToken}`;
+      const igResponse = await fetch(igUrl);
+      const igData = await igResponse.json();
+
+      if (igData.error) {
+        console.error("Error fetching Instagram account:", igData.error);
+        return new Response(
+          JSON.stringify({ error: `Erro ao buscar conta Instagram: ${igData.error.message}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!igData.instagram_business_account) {
+        return new Response(
+          JSON.stringify({ 
+            error: "Nenhuma conta Instagram Business vinculada a esta página. Vincule sua conta Instagram Business/Creator à página do Facebook primeiro." 
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      finalInstagramAccountId = igData.instagram_business_account.id;
+      console.log("Found Instagram Business Account:", finalInstagramAccountId);
+
+      // Get Instagram username
       try {
-        const igUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}?fields=username&access_token=${accessToken}`;
-        const igResponse = await fetch(igUrl);
-        const igData = await igResponse.json();
+        const igInfoUrl = `https://graph.facebook.com/${API_VERSION}/${finalInstagramAccountId}?fields=username&access_token=${pageAccessToken}`;
+        const igInfoResponse = await fetch(igInfoUrl);
+        const igInfoData = await igInfoResponse.json();
         
-        if (igData.username) {
-          platformUsername = igData.username;
+        if (igInfoData.username) {
+          platformUsername = igInfoData.username;
           console.log("Instagram username:", platformUsername);
-        } else if (igData.error) {
-          console.warn("Could not fetch Instagram username:", igData.error.message);
-          // Don't fail, just continue without username
         }
       } catch (err) {
-        console.warn("Error fetching Instagram info:", err);
+        console.warn("Could not fetch Instagram username:", err);
       }
     }
 
-    // Try to get Facebook page name if platform is facebook
+    // Step 5: For Facebook, get page name
     if (platform === "facebook") {
-      console.log("Fetching Facebook page info...");
-      try {
-        const pageUrl = `https://graph.facebook.com/v21.0/${pageId}?fields=name&access_token=${accessToken}`;
-        const pageResponse = await fetch(pageUrl);
-        const pageData = await pageResponse.json();
-        
-        if (pageData.name) {
-          platformUsername = pageData.name;
-          console.log("Facebook page name:", platformUsername);
-        } else if (pageData.error) {
-          console.warn("Could not fetch page name:", pageData.error.message);
-        }
-      } catch (err) {
-        console.warn("Error fetching page info:", err);
-      }
+      platformUsername = selectedPage.name;
+      console.log("Facebook page name:", platformUsername);
     }
 
-    // Calculate expiration based on debug data or default to 60 days
+    // Calculate expiration - Page tokens from /me/accounts are long-lived (60+ days)
     let expiresAt = new Date();
     if (debugData.data.expires_at && debugData.data.expires_at > 0) {
       expiresAt = new Date(debugData.data.expires_at * 1000);
     } else {
+      // Page tokens don't expire if the user token was long-lived
       expiresAt.setDate(expiresAt.getDate() + 60);
     }
 
-    // Save to database
+    // Step 6: Save to database with the PAGE ACCESS TOKEN (not user token)
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Saving to database...");
+    console.log("Saving to database with Page Access Token...");
 
     const { error: upsertError } = await supabase
       .from("connected_accounts")
       .update({
-        access_token: accessToken,
-        page_id: pageId,
-        instagram_account_id: platform === "instagram" ? instagramAccountId : null,
+        access_token: pageAccessToken, // IMPORTANT: Save Page Token, not User Token
+        page_id: finalPageId,
+        instagram_account_id: platform === "instagram" ? finalInstagramAccountId : null,
         platform_username: platformUsername,
         is_connected: true,
         connected_at: new Date().toISOString(),
@@ -133,13 +212,15 @@ serve(async (req) => {
       );
     }
 
-    console.log("Account connected successfully!");
+    console.log("Account connected successfully with Page Access Token!");
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: `${platform} conectado com sucesso!`,
-        username: platformUsername || pageId
+        username: platformUsername || finalPageId,
+        pageId: finalPageId,
+        instagramAccountId: finalInstagramAccountId
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
