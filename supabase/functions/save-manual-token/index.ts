@@ -30,41 +30,79 @@ serve(async (req) => {
       );
     }
 
-    // Validate token by making a test API call
-    console.log("Validating token with Graph API...");
+    // Validate token using debug_token endpoint (requires only basic access)
+    console.log("Validating token with Graph API debug endpoint...");
     
-    const validateUrl = `https://graph.facebook.com/v21.0/${pageId}?fields=name,id&access_token=${accessToken}`;
-    const validateResponse = await fetch(validateUrl);
-    const validateData = await validateResponse.json();
+    const debugUrl = `https://graph.facebook.com/v21.0/debug_token?input_token=${accessToken}&access_token=${accessToken}`;
+    const debugResponse = await fetch(debugUrl);
+    const debugData = await debugResponse.json();
 
-    if (validateData.error) {
-      console.error("Token validation failed:", validateData.error);
+    if (debugData.error) {
+      console.error("Token debug failed:", debugData.error);
       return new Response(
-        JSON.stringify({ error: `Token inválido: ${validateData.error.message}` }),
+        JSON.stringify({ error: `Token inválido: ${debugData.error.message}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("Token validated successfully, page name:", validateData.name);
+    if (!debugData.data?.is_valid) {
+      console.error("Token is not valid:", debugData.data);
+      return new Response(
+        JSON.stringify({ error: "Token inválido ou expirado" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    let platformUsername = validateData.name;
+    console.log("Token validated successfully. Scopes:", debugData.data.scopes);
 
-    // For Instagram, get the Instagram username
+    let platformUsername = null;
+
+    // Try to get Instagram username if platform is instagram
     if (platform === "instagram" && instagramAccountId) {
       console.log("Fetching Instagram account info...");
-      const igUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}?fields=username&access_token=${accessToken}`;
-      const igResponse = await fetch(igUrl);
-      const igData = await igResponse.json();
-      
-      if (igData.username) {
-        platformUsername = igData.username;
-        console.log("Instagram username:", platformUsername);
+      try {
+        const igUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}?fields=username&access_token=${accessToken}`;
+        const igResponse = await fetch(igUrl);
+        const igData = await igResponse.json();
+        
+        if (igData.username) {
+          platformUsername = igData.username;
+          console.log("Instagram username:", platformUsername);
+        } else if (igData.error) {
+          console.warn("Could not fetch Instagram username:", igData.error.message);
+          // Don't fail, just continue without username
+        }
+      } catch (err) {
+        console.warn("Error fetching Instagram info:", err);
       }
     }
 
-    // Calculate expiration (60 days from now)
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 60);
+    // Try to get Facebook page name if platform is facebook
+    if (platform === "facebook") {
+      console.log("Fetching Facebook page info...");
+      try {
+        const pageUrl = `https://graph.facebook.com/v21.0/${pageId}?fields=name&access_token=${accessToken}`;
+        const pageResponse = await fetch(pageUrl);
+        const pageData = await pageResponse.json();
+        
+        if (pageData.name) {
+          platformUsername = pageData.name;
+          console.log("Facebook page name:", platformUsername);
+        } else if (pageData.error) {
+          console.warn("Could not fetch page name:", pageData.error.message);
+        }
+      } catch (err) {
+        console.warn("Error fetching page info:", err);
+      }
+    }
+
+    // Calculate expiration based on debug data or default to 60 days
+    let expiresAt = new Date();
+    if (debugData.data.expires_at && debugData.data.expires_at > 0) {
+      expiresAt = new Date(debugData.data.expires_at * 1000);
+    } else {
+      expiresAt.setDate(expiresAt.getDate() + 60);
+    }
 
     // Save to database
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -101,7 +139,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: `${platform} conectado com sucesso!`,
-        username: platformUsername
+        username: platformUsername || pageId
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
