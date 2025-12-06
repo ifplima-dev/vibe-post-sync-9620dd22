@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Settings, Grid, List, LogOut, Edit3, Link2, Loader2, Video } from "lucide-react";
+import { Settings, Grid, List, LogOut, Edit3, Link2, Loader2, Video, RefreshCw } from "lucide-react";
+import { ConnectAccountDialog } from "@/components/social/ConnectAccountDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/dashboard/VideoCard";
@@ -30,6 +31,13 @@ const platformIcons: Record<string, typeof InstagramIcon> = {
 export default function Profile() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [connectDialogOpen, setConnectDialogOpen] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState<"instagram" | "facebook" | "tiktok" | "youtube" | null>(null);
+
+  const handleReconnect = (platform: string) => {
+    setSelectedPlatform(platform as "instagram" | "facebook" | "tiktok" | "youtube");
+    setConnectDialogOpen(true);
+  };
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { data: profile, isLoading: profileLoading } = useProfile();
@@ -174,9 +182,15 @@ export default function Profile() {
                         Conectado
                       </p>
                     </div>
-                    <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded-full">
-                      {account.platform.charAt(0).toUpperCase() + account.platform.slice(1)}
-                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => handleReconnect(account.platform)}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-1" />
+                      Reconectar
+                    </Button>
                   </div>
                 );
               })}
@@ -278,6 +292,14 @@ export default function Profile() {
       </div>
 
       <EditProfileDialog open={editDialogOpen} onOpenChange={setEditDialogOpen} />
+      
+      {selectedPlatform && (
+        <ConnectAccountDialog
+          open={connectDialogOpen}
+          onOpenChange={setConnectDialogOpen}
+          platform={selectedPlatform}
+        />
+      )}
     </AppLayout>
   );
 }
