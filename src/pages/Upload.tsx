@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Upload as UploadIcon, X, Play, Scissors, Type, Share2, CalendarClock, Loader2 } from "lucide-react";
+import { Upload as UploadIcon, X, Play, Scissors, Type, Share2, CalendarClock, Loader2, ChevronLeft, ChevronRight, Images } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { useConnectedAccounts } from "@/hooks/useConnectedAccounts";
 import { useCreateScheduledPost } from "@/hooks/useScheduledPosts";
 import { useUploadVideo, useCreateVideo } from "@/hooks/useVideos";
 import { DateTimePicker } from "@/components/scheduler/DateTimePicker";
+import { compressImage, compressImages } from "@/hooks/useImageCompression";
 import {
   InstagramIcon,
   TikTokIcon,
@@ -32,11 +33,16 @@ const MAX_VIDEO_SIZE_MB = 100;
 const MAX_IMAGE_SIZE_MB = 10;
 const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
 const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+const MAX_CAROUSEL_IMAGES = 10;
 
 export default function Upload() {
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  // Support for multiple files (carousel)
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
   const [mediaType, setMediaType] = useState<"video" | "image" | null>(null);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [isCompressing, setIsCompressing] = useState(false);
+  
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -74,13 +80,49 @@ export default function Upload() {
     return { valid: true };
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // Check if mixing videos and images
+    const hasVideos = files.some(f => f.type.startsWith("video/"));
+    const hasImages = files.some(f => f.type.startsWith("image/"));
+    
+    if (hasVideos && hasImages) {
+      toast({
+        title: "Tipo de mídia inválido",
+        description: "Selecione apenas vídeos ou apenas imagens.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If video, only allow one
+    if (hasVideos && files.length > 1) {
+      toast({
+        title: "Apenas um vídeo",
+        description: "Selecione apenas um vídeo por vez.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check carousel limit for images
+    if (hasImages && files.length > MAX_CAROUSEL_IMAGES) {
+      toast({
+        title: "Limite de imagens",
+        description: `Máximo de ${MAX_CAROUSEL_IMAGES} imagens por carrossel.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate all files
+    for (const file of files) {
       if (!isValidMediaFile(file)) {
         toast({
           title: "Arquivo inválido",
-          description: "Por favor, selecione um arquivo de vídeo ou imagem.",
+          description: "Por favor, selecione arquivos de vídeo ou imagem.",
           variant: "destructive",
         });
         return;
@@ -95,21 +137,73 @@ export default function Upload() {
         });
         return;
       }
-      
-      setMediaFile(file);
-      setMediaPreview(URL.createObjectURL(file));
-      setMediaType(getMediaType(file));
     }
+
+    // Compress images if needed
+    let processedFiles = files;
+    if (hasImages) {
+      setIsCompressing(true);
+      try {
+        processedFiles = await compressImages(files);
+        toast({
+          title: "Imagens otimizadas",
+          description: "Suas imagens foram comprimidas automaticamente.",
+        });
+      } catch (error) {
+        console.error("Compression error:", error);
+      } finally {
+        setIsCompressing(false);
+      }
+    }
+
+    // Set state
+    setMediaFiles(processedFiles);
+    setMediaPreviews(processedFiles.map(f => URL.createObjectURL(f)));
+    setMediaType(getMediaType(processedFiles[0]));
+    setCarouselIndex(0);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length === 0) return;
+
+    // Reuse same logic
+    const hasVideos = files.some(f => f.type.startsWith("video/"));
+    const hasImages = files.some(f => f.type.startsWith("image/"));
+    
+    if (hasVideos && hasImages) {
+      toast({
+        title: "Tipo de mídia inválido",
+        description: "Selecione apenas vídeos ou apenas imagens.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (hasVideos && files.length > 1) {
+      toast({
+        title: "Apenas um vídeo",
+        description: "Selecione apenas um vídeo por vez.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (hasImages && files.length > MAX_CAROUSEL_IMAGES) {
+      toast({
+        title: "Limite de imagens",
+        description: `Máximo de ${MAX_CAROUSEL_IMAGES} imagens por carrossel.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    for (const file of files) {
       if (!isValidMediaFile(file)) {
         toast({
           title: "Arquivo inválido",
-          description: "Por favor, selecione um arquivo de vídeo ou imagem.",
+          description: "Por favor, selecione arquivos de vídeo ou imagem.",
           variant: "destructive",
         });
         return;
@@ -124,11 +218,28 @@ export default function Upload() {
         });
         return;
       }
-      
-      setMediaFile(file);
-      setMediaPreview(URL.createObjectURL(file));
-      setMediaType(getMediaType(file));
     }
+
+    let processedFiles = files;
+    if (hasImages) {
+      setIsCompressing(true);
+      try {
+        processedFiles = await compressImages(files);
+        toast({
+          title: "Imagens otimizadas",
+          description: "Suas imagens foram comprimidas automaticamente.",
+        });
+      } catch (error) {
+        console.error("Compression error:", error);
+      } finally {
+        setIsCompressing(false);
+      }
+    }
+
+    setMediaFiles(processedFiles);
+    setMediaPreviews(processedFiles.map(f => URL.createObjectURL(f)));
+    setMediaType(getMediaType(processedFiles[0]));
+    setCarouselIndex(0);
   };
 
   const handlePlatformToggle = (platformId: string) => {
@@ -153,8 +264,19 @@ export default function Upload() {
     });
   };
 
+  const removeImage = (index: number) => {
+    setMediaFiles(prev => prev.filter((_, i) => i !== index));
+    setMediaPreviews(prev => prev.filter((_, i) => i !== index));
+    if (carouselIndex >= mediaFiles.length - 1) {
+      setCarouselIndex(Math.max(0, mediaFiles.length - 2));
+    }
+    if (mediaFiles.length === 1) {
+      setMediaType(null);
+    }
+  };
+
   const validateForm = () => {
-    if (!mediaFile) {
+    if (mediaFiles.length === 0) {
       toast({
         title: "Nenhuma mídia selecionada",
         description: "Faça upload de um vídeo ou imagem para continuar.",
@@ -166,7 +288,7 @@ export default function Upload() {
     if (!title.trim()) {
       toast({
         title: "Título obrigatório",
-        description: "Adicione um título ao seu vídeo.",
+        description: "Adicione um título ao seu conteúdo.",
         variant: "destructive",
       });
       return false;
@@ -207,28 +329,37 @@ export default function Upload() {
   };
 
   const handlePublish = async () => {
-    if (!validateForm() || !mediaFile) return;
+    if (!validateForm() || mediaFiles.length === 0) return;
 
     setIsUploading(true);
 
     try {
-      // Upload media to storage
-      const fileUrl = await uploadVideo.mutateAsync(mediaFile);
+      // Upload all media files
+      const uploadedUrls: string[] = [];
+      for (const file of mediaFiles) {
+        const fileUrl = await uploadVideo.mutateAsync(file);
+        uploadedUrls.push(fileUrl);
+      }
+
+      const primaryUrl = uploadedUrls[0];
+      const primaryFileName = mediaFiles[0].name;
 
       if (isScheduled && scheduledDate) {
-        // Create scheduled post
+        // Create scheduled post with carousel support
         await createScheduledPost.mutateAsync({
-          video_file_url: fileUrl,
-          video_name: mediaFile.name,
+          video_file_url: primaryUrl,
+          video_name: primaryFileName,
           title,
           description: description || null,
           platforms: selectedPlatforms,
           scheduled_date: scheduledDate.toISOString(),
           video_id: null,
+          media_urls: uploadedUrls.length > 1 ? uploadedUrls : null,
+          media_type: mediaType,
         });
 
         toast({
-          title: "Vídeo agendado! 📅",
+          title: mediaType === "image" ? "Imagem agendada! 📅" : "Vídeo agendado! 📅",
           description: `Será publicado em ${selectedPlatforms.length} plataforma(s).`,
         });
         
@@ -237,7 +368,7 @@ export default function Upload() {
       } else {
         // Create video record (publish now)
         await createVideo.mutateAsync({
-          file_url: fileUrl,
+          file_url: primaryUrl,
           title,
           description: description || null,
           thumbnail_url: null,
@@ -246,7 +377,7 @@ export default function Upload() {
         });
 
         toast({
-          title: "Vídeo publicado! 🎉",
+          title: mediaType === "image" ? "Imagem publicada! 🎉" : "Vídeo publicado! 🎉",
           description: `Publicado em ${selectedPlatforms.length} plataforma(s).`,
         });
         
@@ -265,9 +396,10 @@ export default function Upload() {
   };
 
   const resetForm = () => {
-    setMediaFile(null);
-    setMediaPreview(null);
+    setMediaFiles([]);
+    setMediaPreviews([]);
     setMediaType(null);
+    setCarouselIndex(0);
     setTitle("");
     setDescription("");
     setSelectedPlatforms([]);
@@ -276,13 +408,16 @@ export default function Upload() {
   };
 
   const clearMedia = () => {
-    setMediaFile(null);
-    setMediaPreview(null);
+    setMediaFiles([]);
+    setMediaPreviews([]);
     setMediaType(null);
+    setCarouselIndex(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
+
+  const isCarousel = mediaPreviews.length > 1;
 
   return (
     <AppLayout>
@@ -293,7 +428,7 @@ export default function Upload() {
             <span className="gradient-text">Upload</span> de Mídia
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Selecione um vídeo ou imagem e publique nas suas redes
+            Selecione um vídeo ou até {MAX_CAROUSEL_IMAGES} imagens para carrossel
           </p>
         </header>
 
@@ -301,34 +436,70 @@ export default function Upload() {
         <div
           className={cn(
             "relative rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden",
-            mediaPreview
+            mediaPreviews.length > 0
               ? "border-primary bg-card"
               : "border-border hover:border-primary/50 bg-secondary/30"
           )}
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
         >
-          {mediaPreview ? (
+          {mediaPreviews.length > 0 ? (
             <div className="relative aspect-video">
               {mediaType === "video" ? (
                 <video
-                  src={mediaPreview}
+                  src={mediaPreviews[0]}
                   className="w-full h-full object-cover"
                   controls
                 />
               ) : (
                 <img
-                  src={mediaPreview}
+                  src={mediaPreviews[carouselIndex]}
                   className="w-full h-full object-cover"
                   alt="Preview"
                 />
               )}
+              
+              {/* Close button */}
               <button
                 onClick={clearMedia}
                 className="absolute top-3 right-3 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-destructive transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
+
+              {/* Carousel navigation */}
+              {isCarousel && (
+                <>
+                  <button
+                    onClick={() => setCarouselIndex(i => Math.max(0, i - 1))}
+                    disabled={carouselIndex === 0}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 transition-all"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => setCarouselIndex(i => Math.min(mediaPreviews.length - 1, i + 1))}
+                    disabled={carouselIndex === mediaPreviews.length - 1}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 transition-all"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                  
+                  {/* Carousel counter */}
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-background/80 backdrop-blur-sm flex items-center gap-2">
+                    <Images className="w-4 h-4" />
+                    <span className="text-sm font-medium">{carouselIndex + 1} / {mediaPreviews.length}</span>
+                  </div>
+
+                  {/* Remove current image */}
+                  <button
+                    onClick={() => removeImage(carouselIndex)}
+                    className="absolute top-3 left-3 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-destructive transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </>
+              )}
               
               {/* Quick actions - only for videos */}
               {mediaType === "video" && (
@@ -349,38 +520,73 @@ export default function Upload() {
               className="flex flex-col items-center justify-center py-16 cursor-pointer"
               onClick={() => fileInputRef.current?.click()}
             >
-              <div className="p-4 rounded-full bg-primary/10 mb-4 animate-pulse-glow">
-                <UploadIcon className="w-8 h-8 text-primary" />
-              </div>
-              <p className="font-semibold text-foreground mb-1">
-                Arraste seu vídeo ou imagem aqui
-              </p>
-              <p className="text-sm text-muted-foreground mb-2">
-                ou clique para selecionar
-              </p>
-              <p className="text-xs text-muted-foreground mb-4">
-                Vídeos: máx. {MAX_VIDEO_SIZE_MB}MB | Imagens: máx. {MAX_IMAGE_SIZE_MB}MB
-              </p>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  fileInputRef.current?.click();
-                }}
-              >
-                Escolher arquivo
-              </Button>
+              {isCompressing ? (
+                <>
+                  <div className="p-4 rounded-full bg-primary/10 mb-4">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  </div>
+                  <p className="font-semibold text-foreground mb-1">
+                    Comprimindo imagens...
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Aguarde um momento
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="p-4 rounded-full bg-primary/10 mb-4 animate-pulse-glow">
+                    <UploadIcon className="w-8 h-8 text-primary" />
+                  </div>
+                  <p className="font-semibold text-foreground mb-1">
+                    Arraste sua mídia aqui
+                  </p>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    ou clique para selecionar
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Vídeos: máx. {MAX_VIDEO_SIZE_MB}MB | Imagens: máx. {MAX_IMAGE_SIZE_MB}MB (até {MAX_CAROUSEL_IMAGES} imagens)
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                  >
+                    Escolher arquivo
+                  </Button>
+                </>
+              )}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="video/*,image/*"
+                multiple
                 onChange={handleFileSelect}
                 className="hidden"
               />
             </div>
           )}
         </div>
+
+        {/* Carousel thumbnail strip */}
+        {isCarousel && (
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {mediaPreviews.map((preview, index) => (
+              <button
+                key={index}
+                onClick={() => setCarouselIndex(index)}
+                className={cn(
+                  "relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all",
+                  carouselIndex === index ? "border-primary" : "border-transparent opacity-60 hover:opacity-100"
+                )}
+              >
+                <img src={preview} alt={`Imagem ${index + 1}`} className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Video Details */}
         <div className="space-y-4">
@@ -405,7 +611,7 @@ export default function Upload() {
               Descrição (opcional)
             </label>
             <Textarea
-              placeholder="Descreva seu vídeo, adicione hashtags..."
+              placeholder="Descreva seu conteúdo, adicione hashtags..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -492,7 +698,7 @@ export default function Upload() {
           size="xl"
           className="w-full"
           onClick={handlePublish}
-          disabled={isUploading}
+          disabled={isUploading || isCompressing}
         >
           {isUploading ? (
             <>
@@ -504,7 +710,7 @@ export default function Upload() {
               {isScheduled ? (
                 <>
                   <CalendarClock className="w-5 h-5" />
-                  Agendar Publicação
+                  Agendar
                 </>
               ) : (
                 <>
@@ -515,6 +721,9 @@ export default function Upload() {
             </>
           )}
         </Button>
+
+        {/* Spacing for bottom nav */}
+        <div className="h-4" />
       </div>
     </AppLayout>
   );
