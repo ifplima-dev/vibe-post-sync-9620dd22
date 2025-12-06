@@ -28,8 +28,9 @@ const platformIcons: Record<string, typeof InstagramIcon> = {
 };
 
 export default function Upload() {
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<"video" | "image" | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -45,28 +46,38 @@ export default function Upload() {
   const uploadVideo = useUploadVideo();
   const createVideo = useCreateVideo();
 
+  const isValidMediaFile = (file: File) => {
+    return file.type.startsWith("video/") || file.type.startsWith("image/");
+  };
+
+  const getMediaType = (file: File): "video" | "image" => {
+    return file.type.startsWith("video/") ? "video" : "image";
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith("video/")) {
+      if (!isValidMediaFile(file)) {
         toast({
           title: "Arquivo inválido",
-          description: "Por favor, selecione um arquivo de vídeo.",
+          description: "Por favor, selecione um arquivo de vídeo ou imagem.",
           variant: "destructive",
         });
         return;
       }
-      setVideoFile(file);
-      setVideoPreview(URL.createObjectURL(file));
+      setMediaFile(file);
+      setMediaPreview(URL.createObjectURL(file));
+      setMediaType(getMediaType(file));
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith("video/")) {
-      setVideoFile(file);
-      setVideoPreview(URL.createObjectURL(file));
+    if (file && isValidMediaFile(file)) {
+      setMediaFile(file);
+      setMediaPreview(URL.createObjectURL(file));
+      setMediaType(getMediaType(file));
     }
   };
 
@@ -93,10 +104,10 @@ export default function Upload() {
   };
 
   const validateForm = () => {
-    if (!videoFile) {
+    if (!mediaFile) {
       toast({
-        title: "Nenhum vídeo selecionado",
-        description: "Faça upload de um vídeo para continuar.",
+        title: "Nenhuma mídia selecionada",
+        description: "Faça upload de um vídeo ou imagem para continuar.",
         variant: "destructive",
       });
       return false;
@@ -146,19 +157,19 @@ export default function Upload() {
   };
 
   const handlePublish = async () => {
-    if (!validateForm() || !videoFile) return;
+    if (!validateForm() || !mediaFile) return;
 
     setIsUploading(true);
 
     try {
-      // Upload video to storage
-      const fileUrl = await uploadVideo.mutateAsync(videoFile);
+      // Upload media to storage
+      const fileUrl = await uploadVideo.mutateAsync(mediaFile);
 
       if (isScheduled && scheduledDate) {
         // Create scheduled post
         await createScheduledPost.mutateAsync({
           video_file_url: fileUrl,
-          video_name: videoFile.name,
+          video_name: mediaFile.name,
           title,
           description: description || null,
           platforms: selectedPlatforms,
@@ -204,8 +215,9 @@ export default function Upload() {
   };
 
   const resetForm = () => {
-    setVideoFile(null);
-    setVideoPreview(null);
+    setMediaFile(null);
+    setMediaPreview(null);
+    setMediaType(null);
     setTitle("");
     setDescription("");
     setSelectedPlatforms([]);
@@ -213,9 +225,10 @@ export default function Upload() {
     setScheduledDate(undefined);
   };
 
-  const clearVideo = () => {
-    setVideoFile(null);
-    setVideoPreview(null);
+  const clearMedia = () => {
+    setMediaFile(null);
+    setMediaPreview(null);
+    setMediaType(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -227,10 +240,10 @@ export default function Upload() {
         {/* Header */}
         <header>
           <h1 className="text-2xl font-bold text-foreground">
-            <span className="gradient-text">Upload</span> de Vídeo
+            <span className="gradient-text">Upload</span> de Mídia
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Selecione um vídeo e publique nas suas redes
+            Selecione um vídeo ou imagem e publique nas suas redes
           </p>
         </header>
 
@@ -238,38 +251,48 @@ export default function Upload() {
         <div
           className={cn(
             "relative rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden",
-            videoPreview
+            mediaPreview
               ? "border-primary bg-card"
               : "border-border hover:border-primary/50 bg-secondary/30"
           )}
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
         >
-          {videoPreview ? (
+          {mediaPreview ? (
             <div className="relative aspect-video">
-              <video
-                src={videoPreview}
-                className="w-full h-full object-cover"
-                controls
-              />
+              {mediaType === "video" ? (
+                <video
+                  src={mediaPreview}
+                  className="w-full h-full object-cover"
+                  controls
+                />
+              ) : (
+                <img
+                  src={mediaPreview}
+                  className="w-full h-full object-cover"
+                  alt="Preview"
+                />
+              )}
               <button
-                onClick={clearVideo}
+                onClick={clearMedia}
                 className="absolute top-3 right-3 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-destructive transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
               
-              {/* Quick actions */}
-              <div className="absolute bottom-3 left-3 right-3 flex gap-2">
-                <Button variant="glass" size="sm" className="flex-1" onClick={handleCutVideo}>
-                  <Scissors className="w-4 h-4" />
-                  Cortar
-                </Button>
-                <Button variant="glass" size="sm" className="flex-1" onClick={handlePreview}>
-                  <Play className="w-4 h-4" />
-                  Preview
-                </Button>
-              </div>
+              {/* Quick actions - only for videos */}
+              {mediaType === "video" && (
+                <div className="absolute bottom-3 left-3 right-3 flex gap-2">
+                  <Button variant="glass" size="sm" className="flex-1" onClick={handleCutVideo}>
+                    <Scissors className="w-4 h-4" />
+                    Cortar
+                  </Button>
+                  <Button variant="glass" size="sm" className="flex-1" onClick={handlePreview}>
+                    <Play className="w-4 h-4" />
+                    Preview
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <div 
@@ -280,7 +303,7 @@ export default function Upload() {
                 <UploadIcon className="w-8 h-8 text-primary" />
               </div>
               <p className="font-semibold text-foreground mb-1">
-                Arraste seu vídeo aqui
+                Arraste seu vídeo ou imagem aqui
               </p>
               <p className="text-sm text-muted-foreground mb-4">
                 ou clique para selecionar
@@ -298,7 +321,7 @@ export default function Upload() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="video/*"
+                accept="video/*,image/*"
                 onChange={handleFileSelect}
                 className="hidden"
               />
