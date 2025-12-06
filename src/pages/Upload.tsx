@@ -490,80 +490,82 @@ export default function Upload() {
           onDragOver={(e) => e.preventDefault()}
         >
           {mediaPreviews.length > 0 ? (
-            <div className="relative aspect-video">
-              {mediaType === "video" ? (
-                <video
-                  src={mediaPreviews[0]}
-                  className="w-full h-full object-cover"
-                  controls
-                />
-              ) : (
-                <img
-                  src={mediaPreviews[carouselIndex]}
-                  className="w-full h-full object-cover"
-                  alt="Preview"
-                />
-              )}
-              
-              {/* Close button */}
-              <button
-                onClick={clearMedia}
-                className="absolute top-3 right-3 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-destructive transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+            <div className="flex justify-center p-4">
+              <div className="relative w-full max-w-sm aspect-square rounded-xl overflow-hidden bg-black/50">
+                {mediaType === "video" ? (
+                  <video
+                    src={mediaPreviews[0]}
+                    className="w-full h-full object-contain"
+                    controls
+                  />
+                ) : (
+                  <img
+                    src={mediaPreviews[carouselIndex]}
+                    className="w-full h-full object-contain"
+                    alt="Preview"
+                  />
+                )}
+                
+                {/* Close button */}
+                <button
+                  onClick={clearMedia}
+                  className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-destructive transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
 
-              {/* Carousel navigation */}
-              {isCarousel && (
-                <>
-                  <button
-                    onClick={() => setCarouselIndex(i => Math.max(0, i - 1))}
-                    disabled={carouselIndex === 0}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 transition-all"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => setCarouselIndex(i => Math.min(mediaPreviews.length - 1, i + 1))}
-                    disabled={carouselIndex === mediaPreviews.length - 1}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 transition-all"
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                  
-                  {/* Carousel counter */}
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-background/80 backdrop-blur-sm flex items-center gap-2">
-                    <Images className="w-4 h-4" />
-                    <span className="text-sm font-medium">{carouselIndex + 1} / {mediaPreviews.length}</span>
+                {/* Carousel navigation */}
+                {isCarousel && (
+                  <>
+                    <button
+                      onClick={() => setCarouselIndex(i => Math.max(0, i - 1))}
+                      disabled={carouselIndex === 0}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 transition-all"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setCarouselIndex(i => Math.min(mediaPreviews.length - 1, i + 1))}
+                      disabled={carouselIndex === mediaPreviews.length - 1}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 transition-all"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    
+                    {/* Carousel counter */}
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-full bg-background/80 backdrop-blur-sm flex items-center gap-1.5 text-xs">
+                      <Images className="w-3 h-3" />
+                      <span className="font-medium">{carouselIndex + 1}/{mediaPreviews.length}</span>
+                    </div>
+
+                    {/* Remove current image */}
+                    <button
+                      onClick={() => removeImage(carouselIndex)}
+                      className="absolute top-2 left-2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-destructive transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+                
+                {/* Quick actions - only for videos */}
+                {mediaType === "video" && (
+                  <div className="absolute bottom-2 left-2 right-2 flex gap-2">
+                    <Button variant="glass" size="sm" className="flex-1 h-8 text-xs" onClick={handleCutVideo}>
+                      <Scissors className="w-3 h-3" />
+                      Cortar
+                    </Button>
+                    <Button variant="glass" size="sm" className="flex-1 h-8 text-xs" onClick={handlePreview}>
+                      <Play className="w-3 h-3" />
+                      Preview
+                    </Button>
                   </div>
-
-                  {/* Remove current image */}
-                  <button
-                    onClick={() => removeImage(carouselIndex)}
-                    className="absolute top-3 left-3 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-destructive transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </>
-              )}
-              
-              {/* Quick actions - only for videos */}
-              {mediaType === "video" && (
-                <div className="absolute bottom-3 left-3 right-3 flex gap-2">
-                  <Button variant="glass" size="sm" className="flex-1" onClick={handleCutVideo}>
-                    <Scissors className="w-4 h-4" />
-                    Cortar
-                  </Button>
-                  <Button variant="glass" size="sm" className="flex-1" onClick={handlePreview}>
-                    <Play className="w-4 h-4" />
-                    Preview
-                  </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ) : (
             <div 
-              className="flex flex-col items-center justify-center py-16 cursor-pointer"
+              className="flex flex-col items-center justify-center py-10 cursor-pointer"
               onClick={() => fileInputRef.current?.click()}
             >
               {isCompressing ? (
@@ -618,13 +620,13 @@ export default function Upload() {
 
         {/* Carousel thumbnail strip */}
         {isCarousel && (
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="flex gap-1.5 justify-center overflow-x-auto pb-2">
             {mediaPreviews.map((preview, index) => (
               <button
                 key={index}
                 onClick={() => setCarouselIndex(index)}
                 className={cn(
-                  "relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all",
+                  "relative w-12 h-12 rounded-md overflow-hidden flex-shrink-0 border-2 transition-all",
                   carouselIndex === index ? "border-primary" : "border-transparent opacity-60 hover:opacity-100"
                 )}
               >
