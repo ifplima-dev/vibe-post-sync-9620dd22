@@ -71,7 +71,12 @@ serve(async (req) => {
       );
     }
 
-    // Step 3: Get list of pages to find the correct Page Access Token
+    let pageAccessToken = accessToken;
+    let finalPageId = pageId;
+    let finalInstagramAccountId = instagramAccountId;
+    let platformUsername = null;
+
+    // Step 3: Try to get pages first
     console.log("Fetching user's Facebook pages...");
     const pagesUrl = `https://graph.facebook.com/${API_VERSION}/me/accounts?access_token=${accessToken}`;
     const pagesResponse = await fetch(pagesUrl);
@@ -79,123 +84,196 @@ serve(async (req) => {
 
     if (pagesData.error) {
       console.error("Error fetching pages:", pagesData.error);
-      return new Response(
-        JSON.stringify({ error: `Erro ao buscar páginas: ${pagesData.error.message}` }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
 
-    if (!pagesData.data || pagesData.data.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "Nenhuma página do Facebook encontrada. Verifique se você é administrador de uma página." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const hasPages = pagesData.data && pagesData.data.length > 0;
+    console.log(`Found ${hasPages ? pagesData.data.length : 0} pages`);
 
-    console.log(`Found ${pagesData.data.length} pages`);
+    if (hasPages) {
+      // Traditional approach: Use Page Access Token
+      let selectedPage = null;
 
-    // Find the correct page and get its access token
-    let selectedPage = null;
-    let pageAccessToken = accessToken; // Default to user token if no page specified
-    let finalPageId = pageId;
-    let finalInstagramAccountId = instagramAccountId;
-    let platformUsername = null;
+      if (pageId) {
+        selectedPage = pagesData.data.find((page: { id: string }) => page.id === pageId);
+        if (!selectedPage) {
+          const availablePages = pagesData.data.map((p: { name: string; id: string }) => `${p.name} (${p.id})`).join(", ");
+          return new Response(
+            JSON.stringify({ 
+              error: `Page ID não encontrado. Páginas disponíveis: ${availablePages}` 
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } else {
+        selectedPage = pagesData.data[0];
+        finalPageId = selectedPage.id;
+        console.log(`Using first page: ${selectedPage.name} (${selectedPage.id})`);
+      }
 
-    if (pageId) {
-      // User specified a page ID, find it
-      selectedPage = pagesData.data.find((page: { id: string }) => page.id === pageId);
-      if (!selectedPage) {
-        // List available pages for the user
-        const availablePages = pagesData.data.map((p: { name: string; id: string }) => `${p.name} (${p.id})`).join(", ");
-        return new Response(
-          JSON.stringify({ 
-            error: `Page ID não encontrado. Páginas disponíveis: ${availablePages}` 
-          }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      pageAccessToken = selectedPage.access_token;
+      console.log(`Using Page Access Token for page: ${selectedPage.name}`);
+
+      if (platform === "instagram") {
+        console.log("Fetching Instagram Business Account linked to page...");
+        
+        const igUrl = `https://graph.facebook.com/${API_VERSION}/${finalPageId}?fields=instagram_business_account&access_token=${pageAccessToken}`;
+        const igResponse = await fetch(igUrl);
+        const igData = await igResponse.json();
+
+        if (igData.error) {
+          console.error("Error fetching Instagram account:", igData.error);
+          return new Response(
+            JSON.stringify({ error: `Erro ao buscar conta Instagram: ${igData.error.message}` }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        if (!igData.instagram_business_account) {
+          return new Response(
+            JSON.stringify({ 
+              error: "Nenhuma conta Instagram Business vinculada a esta página. Vincule sua conta Instagram Business/Creator à página do Facebook primeiro." 
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        finalInstagramAccountId = igData.instagram_business_account.id;
+        console.log("Found Instagram Business Account:", finalInstagramAccountId);
+
+        try {
+          const igInfoUrl = `https://graph.facebook.com/${API_VERSION}/${finalInstagramAccountId}?fields=username&access_token=${pageAccessToken}`;
+          const igInfoResponse = await fetch(igInfoUrl);
+          const igInfoData = await igInfoResponse.json();
+          
+          if (igInfoData.username) {
+            platformUsername = igInfoData.username;
+            console.log("Instagram username:", platformUsername);
+          }
+        } catch (err) {
+          console.warn("Could not fetch Instagram username:", err);
+        }
+      }
+
+      if (platform === "facebook") {
+        platformUsername = selectedPage.name;
+        console.log("Facebook page name:", platformUsername);
       }
     } else {
-      // No page specified, use the first one
-      selectedPage = pagesData.data[0];
-      finalPageId = selectedPage.id;
-      console.log(`No page ID specified, using first page: ${selectedPage.name} (${selectedPage.id})`);
-    }
+      // Alternative approach for Instagram without pages
+      // This happens when the token has instagram permissions but no page access
+      console.log("No pages found. Trying alternative Instagram approach...");
 
-    // Get the Page Access Token (this is crucial for publishing)
-    pageAccessToken = selectedPage.access_token;
-    console.log(`Using Page Access Token for page: ${selectedPage.name}`);
+      if (platform === "instagram") {
+        // Try to get Instagram account directly via the user's connected IG account
+        // First, get the user ID from the token
+        const meUrl = `https://graph.facebook.com/${API_VERSION}/me?fields=id,name&access_token=${accessToken}`;
+        const meResponse = await fetch(meUrl);
+        const meData = await meResponse.json();
+        
+        console.log("User info:", meData);
 
-    // Step 4: For Instagram, find the linked Instagram Business Account
-    if (platform === "instagram") {
-      console.log("Fetching Instagram Business Account linked to page...");
-      
-      const igUrl = `https://graph.facebook.com/${API_VERSION}/${finalPageId}?fields=instagram_business_account&access_token=${pageAccessToken}`;
-      const igResponse = await fetch(igUrl);
-      const igData = await igResponse.json();
+        if (meData.error) {
+          return new Response(
+            JSON.stringify({ 
+              error: `Erro ao obter informações do usuário: ${meData.error.message}` 
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
 
-      if (igData.error) {
-        console.error("Error fetching Instagram account:", igData.error);
-        return new Response(
-          JSON.stringify({ error: `Erro ao buscar conta Instagram: ${igData.error.message}` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+        // Try to get Instagram accounts linked to this user
+        const igAccountsUrl = `https://graph.facebook.com/${API_VERSION}/me/accounts?fields=instagram_business_account{id,username}&access_token=${accessToken}`;
+        const igAccountsResponse = await fetch(igAccountsUrl);
+        const igAccountsData = await igAccountsResponse.json();
+        
+        console.log("Instagram accounts lookup result:", JSON.stringify(igAccountsData));
 
-      if (!igData.instagram_business_account) {
+        // If still no pages with IG, try to check if this token can be used directly
+        // Some Creator accounts work with just the user token
+        if (!igAccountsData.data || igAccountsData.data.length === 0) {
+          console.log("No pages with Instagram accounts found. Checking token type...");
+          
+          // Check if this is a Page token (by checking if user_id exists in debug data)
+          const tokenUserId = debugData.data.user_id;
+          const tokenAppId = debugData.data.app_id;
+          
+          console.log("Token user_id:", tokenUserId, "App ID:", tokenAppId);
+          
+          // For tokens from Graph API Explorer, we need pages_show_list permission
+          // Let the user know they need to add that permission
+          return new Response(
+            JSON.stringify({ 
+              error: "Seu token não tem acesso às páginas do Facebook. Para publicar no Instagram via API, você precisa:\n\n1. Ter uma Página do Facebook\n2. Vincular sua conta Instagram Business/Creator a essa página\n3. Gerar um token com as permissões: pages_show_list, pages_read_engagement\n\nNo Graph API Explorer, adicione essas permissões e gere um novo token." 
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Found Instagram via pages
+        for (const page of igAccountsData.data) {
+          if (page.instagram_business_account) {
+            finalInstagramAccountId = page.instagram_business_account.id;
+            platformUsername = page.instagram_business_account.username;
+            finalPageId = page.id;
+            
+            // Get page access token
+            const pageTokenUrl = `https://graph.facebook.com/${API_VERSION}/${page.id}?fields=access_token&access_token=${accessToken}`;
+            const pageTokenResponse = await fetch(pageTokenUrl);
+            const pageTokenData = await pageTokenResponse.json();
+            
+            if (pageTokenData.access_token) {
+              pageAccessToken = pageTokenData.access_token;
+            }
+            
+            console.log("Found Instagram account via alternative method:", finalInstagramAccountId, platformUsername);
+            break;
+          }
+        }
+
+        if (!finalInstagramAccountId) {
+          return new Response(
+            JSON.stringify({ 
+              error: "Não foi possível encontrar uma conta Instagram Business vinculada. Certifique-se de que sua conta Instagram está configurada como Business ou Creator e vinculada a uma Página do Facebook." 
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } else if (platform === "facebook") {
         return new Response(
           JSON.stringify({ 
-            error: "Nenhuma conta Instagram Business vinculada a esta página. Vincule sua conta Instagram Business/Creator à página do Facebook primeiro." 
+            error: "Nenhuma página do Facebook encontrada. Para publicar no Facebook, você precisa ser administrador de uma Página do Facebook e gerar um token com a permissão pages_show_list." 
           }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      finalInstagramAccountId = igData.instagram_business_account.id;
-      console.log("Found Instagram Business Account:", finalInstagramAccountId);
-
-      // Get Instagram username
-      try {
-        const igInfoUrl = `https://graph.facebook.com/${API_VERSION}/${finalInstagramAccountId}?fields=username&access_token=${pageAccessToken}`;
-        const igInfoResponse = await fetch(igInfoUrl);
-        const igInfoData = await igInfoResponse.json();
-        
-        if (igInfoData.username) {
-          platformUsername = igInfoData.username;
-          console.log("Instagram username:", platformUsername);
-        }
-      } catch (err) {
-        console.warn("Could not fetch Instagram username:", err);
-      }
     }
 
-    // Step 5: For Facebook, get page name
-    if (platform === "facebook") {
-      platformUsername = selectedPage.name;
-      console.log("Facebook page name:", platformUsername);
-    }
-
-    // Calculate expiration - Page tokens from /me/accounts are long-lived (60+ days)
+    // Calculate expiration
     let expiresAt = new Date();
     if (debugData.data.expires_at && debugData.data.expires_at > 0) {
       expiresAt = new Date(debugData.data.expires_at * 1000);
     } else {
-      // Page tokens don't expire if the user token was long-lived
       expiresAt.setDate(expiresAt.getDate() + 60);
     }
 
-    // Step 6: Save to database with the PAGE ACCESS TOKEN (not user token)
+    // Save to database
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Saving to database with Page Access Token...");
+    console.log("Saving to database...", { 
+      pageAccessToken: pageAccessToken ? "present" : "missing",
+      finalPageId,
+      finalInstagramAccountId,
+      platformUsername 
+    });
 
     const { error: upsertError } = await supabase
       .from("connected_accounts")
       .upsert({
         user_id: userId,
         platform: platform,
-        access_token: pageAccessToken, // IMPORTANT: Save Page Token, not User Token
+        access_token: pageAccessToken,
         page_id: finalPageId,
         instagram_account_id: platform === "instagram" ? finalInstagramAccountId : null,
         platform_username: platformUsername,
@@ -214,7 +292,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("Account connected successfully with Page Access Token!");
+    console.log("Account connected successfully!");
 
     return new Response(
       JSON.stringify({ 
