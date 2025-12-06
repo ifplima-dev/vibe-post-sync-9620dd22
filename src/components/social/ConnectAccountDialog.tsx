@@ -61,8 +61,6 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
   const [isLoading, setIsLoading] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
   const [accessToken, setAccessToken] = useState("");
-  const [pageId, setPageId] = useState("");
-  const [instagramAccountId, setInstagramAccountId] = useState("");
   const { toast } = useToast();
 
   if (!platform) return null;
@@ -100,19 +98,10 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
   };
 
   const handleManualTokenSubmit = async () => {
-    if (!accessToken || !pageId) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Preencha todos os campos obrigatórios",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (platform === "instagram" && !instagramAccountId) {
+    if (!accessToken.trim()) {
       toast({
         title: "Campo obrigatório",
-        description: "Instagram Account ID é obrigatório para Instagram",
+        description: "Cole o Access Token para continuar",
         variant: "destructive",
       });
       return;
@@ -130,9 +119,7 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
         body: {
           userId: user.id,
           platform,
-          accessToken,
-          pageId,
-          instagramAccountId: platform === "instagram" ? instagramAccountId : null,
+          accessToken: accessToken.trim(),
         },
       });
 
@@ -149,8 +136,6 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
 
       // Reset form and close dialog
       setAccessToken("");
-      setPageId("");
-      setInstagramAccountId("");
       setShowManualForm(false);
       onOpenChange(false);
 
@@ -172,8 +157,6 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
   const resetForm = () => {
     setShowManualForm(false);
     setAccessToken("");
-    setPageId("");
-    setInstagramAccountId("");
   };
 
   return (
@@ -191,7 +174,7 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
           </DialogTitle>
           <DialogDescription>
             {showManualForm 
-              ? "Insira os dados do token obtidos no Graph API Explorer"
+              ? "Cole apenas o Access Token - buscaremos os outros dados automaticamente"
               : `Conecte sua conta do ${info.name} para publicar vídeos e gerenciar comentários.`
             }
           </DialogDescription>
@@ -202,7 +185,7 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
             <div className="py-4 space-y-4">
               <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
                 <p className="text-xs text-primary">
-                  <strong>Como obter os dados:</strong> Acesse o{" "}
+                  <strong>Como obter o token:</strong> Acesse o{" "}
                   <a 
                     href="https://developers.facebook.com/tools/explorer/" 
                     target="_blank" 
@@ -211,57 +194,41 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
                   >
                     Graph API Explorer
                   </a>
-                  , selecione seu app e gere um token com as permissões necessárias.
+                  , selecione seu app e gere um token com as permissões listadas abaixo.
                 </p>
               </div>
 
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="accessToken">Access Token *</Label>
-                  <Input
-                    id="accessToken"
-                    type="password"
-                    placeholder="Cole o access token aqui"
-                    value={accessToken}
-                    onChange={(e) => setAccessToken(e.target.value)}
-                    className="font-mono text-xs"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="pageId">Page ID *</Label>
-                  <Input
-                    id="pageId"
-                    placeholder="Ex: 123456789"
-                    value={pageId}
-                    onChange={(e) => setPageId(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    ID da sua Página do Facebook
-                  </p>
-                </div>
-
-                {platform === "instagram" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="instagramAccountId">Instagram Account ID *</Label>
-                    <Input
-                      id="instagramAccountId"
-                      placeholder="Ex: 17841400..."
-                      value={instagramAccountId}
-                      onChange={(e) => setInstagramAccountId(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      ID da conta Instagram Business vinculada à página
-                    </p>
-                  </div>
-                )}
+              <div className="space-y-2">
+                <Label htmlFor="accessToken">Access Token *</Label>
+                <Input
+                  id="accessToken"
+                  type="password"
+                  placeholder="Cole o access token aqui"
+                  value={accessToken}
+                  onChange={(e) => setAccessToken(e.target.value)}
+                  className="font-mono text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  O sistema irá buscar automaticamente sua página e conta Instagram vinculada.
+                </p>
               </div>
 
               <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                <p className="text-xs text-muted-foreground">
-                  <strong>Permissões necessárias:</strong> instagram_basic, instagram_content_publish, 
-                  instagram_manage_comments, pages_show_list, pages_read_engagement
+                <p className="text-xs text-muted-foreground mb-2">
+                  <strong>Permissões necessárias:</strong>
                 </p>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  <li>• pages_show_list</li>
+                  <li>• pages_read_engagement</li>
+                  {platform === "instagram" ? (
+                    <>
+                      <li>• instagram_basic</li>
+                      <li>• instagram_content_publish</li>
+                    </>
+                  ) : (
+                    <li>• pages_manage_posts</li>
+                  )}
+                </ul>
               </div>
             </div>
           ) : (
