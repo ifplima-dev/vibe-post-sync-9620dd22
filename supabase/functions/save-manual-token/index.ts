@@ -8,10 +8,10 @@ const corsHeaders = {
 
 const API_VERSION = "v21.0";
 
-// Required permissions for publishing
+// Required permissions for publishing - only core permissions required
 const REQUIRED_PERMISSIONS = {
-  instagram: ["instagram_basic", "instagram_content_publish", "pages_read_engagement", "pages_show_list"],
-  facebook: ["pages_manage_posts", "pages_read_engagement", "pages_show_list"],
+  instagram: ["instagram_basic", "instagram_content_publish"],
+  facebook: ["pages_manage_posts", "pages_read_engagement"],
 };
 
 serve(async (req) => {
