@@ -43,7 +43,7 @@ const ASPECT_RATIOS: Record<AspectRatioKey, {
 }> = {
   "1:1": { label: "Quadrado", width: 1080, height: 1080, icon: Square, description: "Feed", tailwindClass: "aspect-square" },
   "4:5": { label: "Vertical", width: 1080, height: 1350, icon: RectangleVertical, description: "Feed", tailwindClass: "aspect-[4/5]" },
-  "9:16": { label: "Reels", width: 1080, height: 1920, icon: Smartphone, description: "Stories", tailwindClass: "aspect-[9/16]" },
+  "9:16": { label: "Reels/Stories", width: 1080, height: 1920, icon: Smartphone, description: "Reels/Stories", tailwindClass: "aspect-[9/16]" },
   "16:9": { label: "Paisagem", width: 1920, height: 1080, icon: Monitor, description: "Horizontal", tailwindClass: "aspect-video" },
 };
 
@@ -702,9 +702,9 @@ export default function Upload() {
                   >
                     <Icon className={cn("w-5 h-5", selectedRatio === key ? "text-primary" : "text-muted-foreground")} />
                     <span className={cn("text-xs font-medium", selectedRatio === key ? "text-primary" : "text-muted-foreground")}>
-                      {key}
+                      {ratio.label}
                     </span>
-                    <span className="text-[10px] text-muted-foreground">{ratio.description}</span>
+                    <span className="text-[10px] text-muted-foreground">{key}</span>
                   </button>
                 );
               })}
