@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +21,33 @@ export interface Comment {
 
 export function useComments(postId: string, platform: string) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Subscribe to realtime updates
+  useEffect(() => {
+    if (!user?.id || !postId) return;
+
+    const channel = supabase
+      .channel(`comments-${postId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "comments",
+          filter: `post_id=eq.${postId}`,
+        },
+        (payload) => {
+          console.log("Realtime comment update:", payload);
+          queryClient.invalidateQueries({ queryKey: ["comments", postId, platform] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, postId, platform, queryClient]);
 
   return useQuery({
     queryKey: ["comments", postId, platform],
