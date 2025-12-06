@@ -14,9 +14,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { userId, platform, videoUrl, caption } = await req.json();
+    const { userId, platform, videoUrl, caption, mediaType = "video" } = await req.json();
 
-    console.log("Meta publish request:", { userId, platform, caption: caption?.substring(0, 50) });
+    console.log("Meta publish request:", { userId, platform, mediaType, caption: caption?.substring(0, 50) });
 
     if (!userId || !platform || !videoUrl) {
       return new Response(
@@ -57,9 +57,13 @@ Deno.serve(async (req) => {
     let result;
 
     if (platform === "instagram") {
-      result = await publishToInstagram(instagramAccountId, accessToken, videoUrl, caption);
+      result = mediaType === "image"
+        ? await publishImageToInstagram(instagramAccountId, accessToken, videoUrl, caption)
+        : await publishToInstagram(instagramAccountId, accessToken, videoUrl, caption);
     } else if (platform === "facebook") {
-      result = await publishToFacebook(pageId, accessToken, videoUrl, caption);
+      result = mediaType === "image"
+        ? await publishImageToFacebook(pageId, accessToken, videoUrl, caption)
+        : await publishToFacebook(pageId, accessToken, videoUrl, caption);
     } else {
       return new Response(
         JSON.stringify({ error: "Platform not supported" }),
@@ -82,13 +86,15 @@ Deno.serve(async (req) => {
   }
 });
 
+// ============= VIDEO PUBLISHING =============
+
 async function publishToInstagram(
   instagramAccountId: string,
   accessToken: string,
   videoUrl: string,
   caption: string
 ) {
-  console.log("Publishing to Instagram...");
+  console.log("Publishing video to Instagram...");
   
   // Step 1: Create media container for video (Reel)
   const containerUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
@@ -99,7 +105,7 @@ async function publishToInstagram(
     access_token: accessToken,
   });
 
-  console.log("Creating Instagram media container...");
+  console.log("Creating Instagram video container...");
   const containerResponse = await fetch(containerUrl, {
     method: "POST",
     body: containerParams,
@@ -115,7 +121,6 @@ async function publishToInstagram(
   console.log("Container created:", containerId);
 
   // Step 2: Wait for video processing and publish
-  // Instagram needs time to process the video
   let status = "IN_PROGRESS";
   let attempts = 0;
   const maxAttempts = 30; // 5 minutes max wait
@@ -143,7 +148,7 @@ async function publishToInstagram(
     access_token: accessToken,
   });
 
-  console.log("Publishing Instagram media...");
+  console.log("Publishing Instagram video...");
   const publishResponse = await fetch(publishUrl, {
     method: "POST",
     body: publishParams,
@@ -155,7 +160,7 @@ async function publishToInstagram(
     throw new Error(publishData.error.message);
   }
 
-  console.log("Instagram publish success:", publishData.id);
+  console.log("Instagram video publish success:", publishData.id);
   return { success: true, postId: publishData.id, platform: "instagram" };
 }
 
@@ -165,7 +170,7 @@ async function publishToFacebook(
   videoUrl: string,
   caption: string
 ) {
-  console.log("Publishing to Facebook...");
+  console.log("Publishing video to Facebook...");
   
   // Upload video to Facebook page
   const uploadUrl = `https://graph.facebook.com/v19.0/${pageId}/videos`;
@@ -187,6 +192,94 @@ async function publishToFacebook(
     throw new Error(uploadData.error.message);
   }
 
-  console.log("Facebook publish success:", uploadData.id);
+  console.log("Facebook video publish success:", uploadData.id);
+  return { success: true, postId: uploadData.id, platform: "facebook" };
+}
+
+// ============= IMAGE PUBLISHING =============
+
+async function publishImageToInstagram(
+  instagramAccountId: string,
+  accessToken: string,
+  imageUrl: string,
+  caption: string
+) {
+  console.log("Publishing image to Instagram...");
+  
+  // Step 1: Create media container for image
+  const containerUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+  const containerParams = new URLSearchParams({
+    image_url: imageUrl,
+    caption: caption || "",
+    access_token: accessToken,
+  });
+
+  console.log("Creating Instagram image container...");
+  const containerResponse = await fetch(containerUrl, {
+    method: "POST",
+    body: containerParams,
+  });
+  const containerData = await containerResponse.json();
+
+  if (containerData.error) {
+    console.error("Error creating image container:", containerData.error);
+    throw new Error(containerData.error.message);
+  }
+
+  const containerId = containerData.id;
+  console.log("Image container created:", containerId);
+
+  // Step 2: Publish the container (images don't need async processing like videos)
+  const publishUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media_publish`;
+  const publishParams = new URLSearchParams({
+    creation_id: containerId,
+    access_token: accessToken,
+  });
+
+  console.log("Publishing Instagram image...");
+  const publishResponse = await fetch(publishUrl, {
+    method: "POST",
+    body: publishParams,
+  });
+  const publishData = await publishResponse.json();
+
+  if (publishData.error) {
+    console.error("Error publishing image:", publishData.error);
+    throw new Error(publishData.error.message);
+  }
+
+  console.log("Instagram image publish success:", publishData.id);
+  return { success: true, postId: publishData.id, platform: "instagram" };
+}
+
+async function publishImageToFacebook(
+  pageId: string,
+  accessToken: string,
+  imageUrl: string,
+  caption: string
+) {
+  console.log("Publishing image to Facebook...");
+  
+  // Upload photo to Facebook page
+  const uploadUrl = `https://graph.facebook.com/v19.0/${pageId}/photos`;
+  const uploadParams = new URLSearchParams({
+    url: imageUrl,
+    caption: caption || "",
+    access_token: accessToken,
+  });
+
+  console.log("Uploading image to Facebook...");
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "POST",
+    body: uploadParams,
+  });
+  const uploadData = await uploadResponse.json();
+
+  if (uploadData.error) {
+    console.error("Error uploading image to Facebook:", uploadData.error);
+    throw new Error(uploadData.error.message);
+  }
+
+  console.log("Facebook image publish success:", uploadData.id);
   return { success: true, postId: uploadData.id, platform: "facebook" };
 }
