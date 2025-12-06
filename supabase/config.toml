@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.process-scheduled-posts]
 verify_jwt = false
+
+[functions.save-manual-token]
+verify_jwt = false
