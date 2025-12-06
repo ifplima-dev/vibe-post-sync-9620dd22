@@ -272,7 +272,10 @@ export default function Upload() {
               </div>
             </div>
           ) : (
-            <label className="flex flex-col items-center justify-center py-16 cursor-pointer">
+            <div 
+              className="flex flex-col items-center justify-center py-16 cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+            >
               <div className="p-4 rounded-full bg-primary/10 mb-4 animate-pulse-glow">
                 <UploadIcon className="w-8 h-8 text-primary" />
               </div>
@@ -282,7 +285,14 @@ export default function Upload() {
               <p className="text-sm text-muted-foreground mb-4">
                 ou clique para selecionar
               </p>
-              <Button variant="outline" size="sm">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
+              >
                 Escolher arquivo
               </Button>
               <input
@@ -292,7 +302,7 @@ export default function Upload() {
                 onChange={handleFileSelect}
                 className="hidden"
               />
-            </label>
+            </div>
           )}
         </div>
 
