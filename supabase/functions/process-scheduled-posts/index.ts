@@ -8,6 +8,14 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Image file extensions
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+
+function getMediaType(fileUrl: string): "video" | "image" {
+  const lowerUrl = fileUrl.toLowerCase();
+  return IMAGE_EXTENSIONS.some(ext => lowerUrl.includes(ext)) ? "image" : "video";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -45,6 +53,10 @@ Deno.serve(async (req) => {
     for (const post of pendingPosts) {
       console.log(`📤 Processing post ${post.id}: "${post.title}"`);
       
+      // Detect media type from file URL
+      const mediaType = getMediaType(post.video_file_url);
+      console.log(`  → Media type: ${mediaType}`);
+      
       // Update status to publishing
       await supabase
         .from("scheduled_posts")
@@ -56,13 +68,14 @@ Deno.serve(async (req) => {
 
       for (const platform of post.platforms) {
         try {
-          console.log(`  → Publishing to ${platform}...`);
+          console.log(`  → Publishing ${mediaType} to ${platform}...`);
           const result = await publishToMeta(
             supabase,
             post.user_id,
             platform,
             post.video_file_url,
-            post.title + (post.description ? "\n\n" + post.description : "")
+            post.title + (post.description ? "\n\n" + post.description : ""),
+            mediaType
           );
           platformResults.push({ platform, success: true, postId: result.postId });
           console.log(`  ✅ Published to ${platform}: ${result.postId}`);
@@ -113,8 +126,9 @@ async function publishToMeta(
   supabaseClient: any,
   userId: string,
   platform: string,
-  videoUrl: string,
-  caption: string
+  mediaUrl: string,
+  caption: string,
+  mediaType: "video" | "image"
 ) {
   // Get connected account info
   const { data: account, error: accountError } = await supabaseClient
@@ -139,21 +153,27 @@ async function publishToMeta(
   const instagramAccountId = typedAccount.instagram_account_id;
 
   if (platform === "instagram") {
-    return await publishToInstagram(instagramAccountId!, accessToken, videoUrl, caption);
+    return mediaType === "image"
+      ? await publishImageToInstagram(instagramAccountId!, accessToken, mediaUrl, caption)
+      : await publishVideoToInstagram(instagramAccountId!, accessToken, mediaUrl, caption);
   } else if (platform === "facebook") {
-    return await publishToFacebook(pageId!, accessToken, videoUrl, caption);
+    return mediaType === "image"
+      ? await publishImageToFacebook(pageId!, accessToken, mediaUrl, caption)
+      : await publishVideoToFacebook(pageId!, accessToken, mediaUrl, caption);
   } else {
     throw new Error(`Platform ${platform} not supported`);
   }
 }
 
-async function publishToInstagram(
+// ============= VIDEO PUBLISHING =============
+
+async function publishVideoToInstagram(
   instagramAccountId: string,
   accessToken: string,
   videoUrl: string,
   caption: string
 ) {
-  console.log("    Publishing to Instagram...");
+  console.log("    Publishing video to Instagram...");
   
   // Step 1: Create media container for video (Reel)
   const containerUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
@@ -218,18 +238,97 @@ async function publishToInstagram(
   return { success: true, postId: publishData.id, platform: "instagram" };
 }
 
-async function publishToFacebook(
+async function publishVideoToFacebook(
   pageId: string,
   accessToken: string,
   videoUrl: string,
   caption: string
 ) {
-  console.log("    Publishing to Facebook...");
+  console.log("    Publishing video to Facebook...");
   
   const uploadUrl = `https://graph.facebook.com/v19.0/${pageId}/videos`;
   const uploadParams = new URLSearchParams({
     file_url: videoUrl,
     description: caption || "",
+    access_token: accessToken,
+  });
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "POST",
+    body: uploadParams,
+  });
+  const uploadData = await uploadResponse.json();
+
+  if (uploadData.error) {
+    throw new Error(uploadData.error.message);
+  }
+
+  return { success: true, postId: uploadData.id, platform: "facebook" };
+}
+
+// ============= IMAGE PUBLISHING =============
+
+async function publishImageToInstagram(
+  instagramAccountId: string,
+  accessToken: string,
+  imageUrl: string,
+  caption: string
+) {
+  console.log("    Publishing image to Instagram...");
+  
+  // Step 1: Create media container for image
+  const containerUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+  const containerParams = new URLSearchParams({
+    image_url: imageUrl,
+    caption: caption || "",
+    access_token: accessToken,
+  });
+
+  const containerResponse = await fetch(containerUrl, {
+    method: "POST",
+    body: containerParams,
+  });
+  const containerData = await containerResponse.json();
+
+  if (containerData.error) {
+    throw new Error(containerData.error.message);
+  }
+
+  const containerId = containerData.id;
+  console.log("    Image container created:", containerId);
+
+  // Step 2: Publish the container (images don't need async processing)
+  const publishUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media_publish`;
+  const publishParams = new URLSearchParams({
+    creation_id: containerId,
+    access_token: accessToken,
+  });
+
+  const publishResponse = await fetch(publishUrl, {
+    method: "POST",
+    body: publishParams,
+  });
+  const publishData = await publishResponse.json();
+
+  if (publishData.error) {
+    throw new Error(publishData.error.message);
+  }
+
+  return { success: true, postId: publishData.id, platform: "instagram" };
+}
+
+async function publishImageToFacebook(
+  pageId: string,
+  accessToken: string,
+  imageUrl: string,
+  caption: string
+) {
+  console.log("    Publishing image to Facebook...");
+  
+  const uploadUrl = `https://graph.facebook.com/v19.0/${pageId}/photos`;
+  const uploadParams = new URLSearchParams({
+    url: imageUrl,
+    caption: caption || "",
     access_token: accessToken,
   });
 

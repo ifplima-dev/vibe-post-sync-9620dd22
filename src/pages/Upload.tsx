@@ -27,6 +27,12 @@ const platformIcons: Record<string, typeof InstagramIcon> = {
   facebook: FacebookIcon,
 };
 
+// File size limits
+const MAX_VIDEO_SIZE_MB = 100;
+const MAX_IMAGE_SIZE_MB = 10;
+const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
+const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+
 export default function Upload() {
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
@@ -54,6 +60,20 @@ export default function Upload() {
     return file.type.startsWith("video/") ? "video" : "image";
   };
 
+  const validateFileSize = (file: File): { valid: boolean; error?: string } => {
+    const isVideo = file.type.startsWith("video/");
+    const maxSize = isVideo ? MAX_VIDEO_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES;
+    const maxSizeMB = isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
+    
+    if (file.size > maxSize) {
+      return {
+        valid: false,
+        error: `O arquivo é muito grande. Máximo permitido: ${maxSizeMB}MB para ${isVideo ? 'vídeos' : 'imagens'}.`
+      };
+    }
+    return { valid: true };
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -65,6 +85,17 @@ export default function Upload() {
         });
         return;
       }
+      
+      const sizeValidation = validateFileSize(file);
+      if (!sizeValidation.valid) {
+        toast({
+          title: "Arquivo muito grande",
+          description: sizeValidation.error,
+          variant: "destructive",
+        });
+        return;
+      }
+      
       setMediaFile(file);
       setMediaPreview(URL.createObjectURL(file));
       setMediaType(getMediaType(file));
@@ -74,7 +105,26 @@ export default function Upload() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
-    if (file && isValidMediaFile(file)) {
+    if (file) {
+      if (!isValidMediaFile(file)) {
+        toast({
+          title: "Arquivo inválido",
+          description: "Por favor, selecione um arquivo de vídeo ou imagem.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const sizeValidation = validateFileSize(file);
+      if (!sizeValidation.valid) {
+        toast({
+          title: "Arquivo muito grande",
+          description: sizeValidation.error,
+          variant: "destructive",
+        });
+        return;
+      }
+      
       setMediaFile(file);
       setMediaPreview(URL.createObjectURL(file));
       setMediaType(getMediaType(file));
@@ -305,8 +355,11 @@ export default function Upload() {
               <p className="font-semibold text-foreground mb-1">
                 Arraste seu vídeo ou imagem aqui
               </p>
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-muted-foreground mb-2">
                 ou clique para selecionar
+              </p>
+              <p className="text-xs text-muted-foreground mb-4">
+                Vídeos: máx. {MAX_VIDEO_SIZE_MB}MB | Imagens: máx. {MAX_IMAGE_SIZE_MB}MB
               </p>
               <Button 
                 variant="outline" 
