@@ -7,6 +7,40 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const API_VERSION = "v21.0";
+
+// Helper function to parse Meta API errors
+function parseMetaError(error: { message?: string; code?: number; error_subcode?: number; type?: string }): string {
+  const code = error.code;
+  const subcode = error.error_subcode;
+  const message = error.message || "Erro desconhecido";
+
+  // Common error codes
+  if (code === 100) {
+    if (subcode === 33) {
+      return "ID da conta Instagram inválido ou sem permissões. Reconecte sua conta.";
+    }
+    return `Parâmetros inválidos: ${message}`;
+  }
+  
+  if (code === 190) {
+    return "Token de acesso expirado ou inválido. Reconecte sua conta.";
+  }
+  
+  if (code === 10) {
+    return "Permissões insuficientes. Verifique se sua conta tem as permissões necessárias.";
+  }
+  
+  if (code === 368) {
+    return "Conta temporariamente bloqueada por violar políticas. Aguarde antes de tentar novamente.";
+  }
+
+  if (code === 4) {
+    return "Limite de requisições excedido. Aguarde alguns minutos e tente novamente.";
+  }
+
+  return message;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -38,21 +72,47 @@ Deno.serve(async (req) => {
     if (accountError || !account) {
       console.error("Account not found:", accountError);
       return new Response(
-        JSON.stringify({ error: "Account not connected" }),
+        JSON.stringify({ error: "Conta não conectada. Conecte sua conta nas configurações." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (!account.is_connected || !account.access_token) {
       return new Response(
-        JSON.stringify({ error: "Account not properly connected" }),
+        JSON.stringify({ error: "Conta não está conectada corretamente. Reconecte sua conta." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Check if token might be expired
+    if (account.token_expires_at) {
+      const expiresAt = new Date(account.token_expires_at);
+      if (expiresAt < new Date()) {
+        return new Response(
+          JSON.stringify({ error: "Token de acesso expirado. Reconecte sua conta." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     const accessToken = account.access_token;
     const pageId = account.page_id;
     const instagramAccountId = account.instagram_account_id;
+
+    // Validate required IDs based on platform
+    if (platform === "instagram" && !instagramAccountId) {
+      return new Response(
+        JSON.stringify({ error: "Instagram Account ID não encontrado. Reconecte sua conta." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (platform === "facebook" && !pageId) {
+      return new Response(
+        JSON.stringify({ error: "Facebook Page ID não encontrado. Reconecte sua conta." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     let result;
 
@@ -77,7 +137,7 @@ Deno.serve(async (req) => {
       }
     } else {
       return new Response(
-        JSON.stringify({ error: "Platform not supported" }),
+        JSON.stringify({ error: "Plataforma não suportada" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -88,7 +148,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     console.error("Error in meta-publish:", error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
@@ -108,7 +168,7 @@ async function publishToInstagram(
   console.log("Publishing video to Instagram...");
   
   // Step 1: Create media container for video (Reel)
-  const containerUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+  const containerUrl = `https://graph.facebook.com/${API_VERSION}/${instagramAccountId}/media`;
   const containerParams = new URLSearchParams({
     video_url: videoUrl,
     caption: caption || "",
@@ -125,7 +185,7 @@ async function publishToInstagram(
 
   if (containerData.error) {
     console.error("Error creating container:", containerData.error);
-    throw new Error(containerData.error.message);
+    throw new Error(parseMetaError(containerData.error));
   }
 
   const containerId = containerData.id;
@@ -139,9 +199,14 @@ async function publishToInstagram(
   while (status === "IN_PROGRESS" && attempts < maxAttempts) {
     await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
     
-    const statusUrl = `https://graph.facebook.com/v19.0/${containerId}?fields=status_code&access_token=${accessToken}`;
+    const statusUrl = `https://graph.facebook.com/${API_VERSION}/${containerId}?fields=status_code&access_token=${accessToken}`;
     const statusResponse = await fetch(statusUrl);
     const statusData = await statusResponse.json();
+    
+    if (statusData.error) {
+      console.error("Error checking status:", statusData.error);
+      throw new Error(parseMetaError(statusData.error));
+    }
     
     status = statusData.status_code;
     console.log("Container status:", status, "attempt:", attempts + 1);
@@ -149,11 +214,11 @@ async function publishToInstagram(
   }
 
   if (status !== "FINISHED") {
-    throw new Error(`Video processing failed or timed out. Status: ${status}`);
+    throw new Error(`Processamento do vídeo falhou ou expirou. Status: ${status}`);
   }
 
   // Step 3: Publish the container
-  const publishUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media_publish`;
+  const publishUrl = `https://graph.facebook.com/${API_VERSION}/${instagramAccountId}/media_publish`;
   const publishParams = new URLSearchParams({
     creation_id: containerId,
     access_token: accessToken,
@@ -168,7 +233,7 @@ async function publishToInstagram(
 
   if (publishData.error) {
     console.error("Error publishing:", publishData.error);
-    throw new Error(publishData.error.message);
+    throw new Error(parseMetaError(publishData.error));
   }
 
   console.log("Instagram video publish success:", publishData.id);
@@ -184,7 +249,7 @@ async function publishToFacebook(
   console.log("Publishing video to Facebook...");
   
   // Upload video to Facebook page
-  const uploadUrl = `https://graph.facebook.com/v19.0/${pageId}/videos`;
+  const uploadUrl = `https://graph.facebook.com/${API_VERSION}/${pageId}/videos`;
   const uploadParams = new URLSearchParams({
     file_url: videoUrl,
     description: caption || "",
@@ -200,7 +265,7 @@ async function publishToFacebook(
 
   if (uploadData.error) {
     console.error("Error uploading to Facebook:", uploadData.error);
-    throw new Error(uploadData.error.message);
+    throw new Error(parseMetaError(uploadData.error));
   }
 
   console.log("Facebook video publish success:", uploadData.id);
@@ -218,7 +283,7 @@ async function publishImageToInstagram(
   console.log("Publishing image to Instagram...");
   
   // Step 1: Create media container for image
-  const containerUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+  const containerUrl = `https://graph.facebook.com/${API_VERSION}/${instagramAccountId}/media`;
   const containerParams = new URLSearchParams({
     image_url: imageUrl,
     caption: caption || "",
@@ -234,14 +299,14 @@ async function publishImageToInstagram(
 
   if (containerData.error) {
     console.error("Error creating image container:", containerData.error);
-    throw new Error(containerData.error.message);
+    throw new Error(parseMetaError(containerData.error));
   }
 
   const containerId = containerData.id;
   console.log("Image container created:", containerId);
 
   // Step 2: Publish the container (images don't need async processing like videos)
-  const publishUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media_publish`;
+  const publishUrl = `https://graph.facebook.com/${API_VERSION}/${instagramAccountId}/media_publish`;
   const publishParams = new URLSearchParams({
     creation_id: containerId,
     access_token: accessToken,
@@ -256,7 +321,7 @@ async function publishImageToInstagram(
 
   if (publishData.error) {
     console.error("Error publishing image:", publishData.error);
-    throw new Error(publishData.error.message);
+    throw new Error(parseMetaError(publishData.error));
   }
 
   console.log("Instagram image publish success:", publishData.id);
@@ -272,7 +337,7 @@ async function publishImageToFacebook(
   console.log("Publishing image to Facebook...");
   
   // Upload photo to Facebook page
-  const uploadUrl = `https://graph.facebook.com/v19.0/${pageId}/photos`;
+  const uploadUrl = `https://graph.facebook.com/${API_VERSION}/${pageId}/photos`;
   const uploadParams = new URLSearchParams({
     url: imageUrl,
     caption: caption || "",
@@ -288,7 +353,7 @@ async function publishImageToFacebook(
 
   if (uploadData.error) {
     console.error("Error uploading image to Facebook:", uploadData.error);
-    throw new Error(uploadData.error.message);
+    throw new Error(parseMetaError(uploadData.error));
   }
 
   console.log("Facebook image publish success:", uploadData.id);
@@ -312,7 +377,7 @@ async function publishCarouselToInstagram(
     const imageUrl = imageUrls[i];
     console.log(`Creating carousel item ${i + 1}/${imageUrls.length}...`);
     
-    const containerUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+    const containerUrl = `https://graph.facebook.com/${API_VERSION}/${instagramAccountId}/media`;
     const containerParams = new URLSearchParams({
       image_url: imageUrl,
       is_carousel_item: "true",
@@ -327,7 +392,7 @@ async function publishCarouselToInstagram(
 
     if (containerData.error) {
       console.error(`Error creating carousel item ${i + 1}:`, containerData.error);
-      throw new Error(containerData.error.message);
+      throw new Error(parseMetaError(containerData.error));
     }
 
     childContainerIds.push(containerData.id);
@@ -336,7 +401,7 @@ async function publishCarouselToInstagram(
 
   // Step 2: Create the carousel container with all children
   console.log("Creating carousel container...");
-  const carouselUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+  const carouselUrl = `https://graph.facebook.com/${API_VERSION}/${instagramAccountId}/media`;
   const carouselParams = new URLSearchParams({
     media_type: "CAROUSEL",
     children: childContainerIds.join(","),
@@ -352,14 +417,14 @@ async function publishCarouselToInstagram(
 
   if (carouselData.error) {
     console.error("Error creating carousel container:", carouselData.error);
-    throw new Error(carouselData.error.message);
+    throw new Error(parseMetaError(carouselData.error));
   }
 
   const carouselId = carouselData.id;
   console.log("Carousel container created:", carouselId);
 
   // Step 3: Publish the carousel
-  const publishUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media_publish`;
+  const publishUrl = `https://graph.facebook.com/${API_VERSION}/${instagramAccountId}/media_publish`;
   const publishParams = new URLSearchParams({
     creation_id: carouselId,
     access_token: accessToken,
@@ -374,7 +439,7 @@ async function publishCarouselToInstagram(
 
   if (publishData.error) {
     console.error("Error publishing carousel:", publishData.error);
-    throw new Error(publishData.error.message);
+    throw new Error(parseMetaError(publishData.error));
   }
 
   console.log("Instagram carousel publish success:", publishData.id);
@@ -396,7 +461,7 @@ async function publishCarouselToFacebook(
     const imageUrl = imageUrls[i];
     console.log(`Uploading photo ${i + 1}/${imageUrls.length}...`);
     
-    const uploadUrl = `https://graph.facebook.com/v19.0/${pageId}/photos`;
+    const uploadUrl = `https://graph.facebook.com/${API_VERSION}/${pageId}/photos`;
     const uploadParams = new URLSearchParams({
       url: imageUrl,
       published: "false",
@@ -411,7 +476,7 @@ async function publishCarouselToFacebook(
 
     if (uploadData.error) {
       console.error(`Error uploading photo ${i + 1}:`, uploadData.error);
-      throw new Error(uploadData.error.message);
+      throw new Error(parseMetaError(uploadData.error));
     }
 
     photoIds.push(uploadData.id);
@@ -420,7 +485,7 @@ async function publishCarouselToFacebook(
 
   // Step 2: Create a feed post with all photos attached
   console.log("Creating Facebook multi-photo post...");
-  const feedUrl = `https://graph.facebook.com/v19.0/${pageId}/feed`;
+  const feedUrl = `https://graph.facebook.com/${API_VERSION}/${pageId}/feed`;
   
   // Build the attached_media parameter
   const attachedMedia = photoIds.map(id => ({ media_fbid: id }));
@@ -440,7 +505,7 @@ async function publishCarouselToFacebook(
 
   if (feedData.error) {
     console.error("Error creating multi-photo post:", feedData.error);
-    throw new Error(feedData.error.message);
+    throw new Error(parseMetaError(feedData.error));
   }
 
   console.log("Facebook carousel publish success:", feedData.id);
