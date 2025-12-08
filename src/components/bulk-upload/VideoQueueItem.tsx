@@ -1,7 +1,11 @@
-import { X, CheckCircle, Loader2, AlertCircle, Clock, Upload, Calendar } from "lucide-react";
+import { useState } from "react";
+import { X, CheckCircle, Loader2, AlertCircle, Clock, Upload, Calendar, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { BulkUploadItem } from "@/hooks/useBulkUpload";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -10,6 +14,7 @@ interface VideoQueueItemProps {
   item: BulkUploadItem;
   index: number;
   onRemove: (id: string) => void;
+  onUpdate?: (id: string, updates: { title?: string; description?: string }) => void;
   disabled?: boolean;
 }
 
@@ -24,12 +29,16 @@ const statusConfig = {
   failed: { icon: AlertCircle, color: "text-destructive", label: "Falhou" },
 };
 
-export function VideoQueueItem({ item, index, onRemove, disabled }: VideoQueueItemProps) {
+export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: VideoQueueItemProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [localTitle, setLocalTitle] = useState(item.title || `Vídeo #${index + 1}`);
+  const [localDescription, setLocalDescription] = useState(item.description || "");
+
   const config = statusConfig[item.status];
   const StatusIcon = config.icon;
   const isLoading = ["uploading", "scheduling", "publishing"].includes(item.status);
   const isComplete = ["scheduled", "published"].includes(item.status);
-  const canRemove = !isLoading && !isComplete;
+  const canEdit = !isLoading && !isComplete && item.status !== "failed";
 
   // Format file size
   const formatSize = (bytes: number) => {
@@ -39,65 +48,133 @@ export function VideoQueueItem({ item, index, onRemove, disabled }: VideoQueueIt
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const handleTitleChange = (value: string) => {
+    setLocalTitle(value);
+    onUpdate?.(item.id, { title: value, description: localDescription });
+  };
+
+  const handleDescriptionChange = (value: string) => {
+    setLocalDescription(value);
+    onUpdate?.(item.id, { title: localTitle, description: value });
+  };
+
+  const toggleExpand = () => {
+    if (canEdit && !disabled) {
+      setIsExpanded(!isExpanded);
+    }
+  };
+
   return (
     <div 
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg border transition-colors",
+        "rounded-lg border transition-colors",
         item.status === "failed" && "border-destructive/50 bg-destructive/5",
         isComplete && "border-green-500/50 bg-green-500/5",
         isLoading && "border-primary/50 bg-primary/5",
         !isLoading && !isComplete && item.status !== "failed" && "border-border bg-card"
       )}
     >
-      {/* Index */}
-      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
-        {index + 1}
-      </div>
-
-      {/* Video info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium truncate">{item.file.name}</span>
-          <span className="text-xs text-muted-foreground shrink-0">
-            {formatSize(item.file.size)}
-          </span>
+      {/* Main row */}
+      <div className="flex items-center gap-3 p-3">
+        {/* Index */}
+        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium shrink-0">
+          {index + 1}
         </div>
-        
-        {/* Progress bar */}
-        {isLoading && (
-          <Progress value={item.progress} className="h-1.5 mt-2" />
+
+        {/* Video info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium truncate">{item.file.name}</span>
+            <span className="text-xs text-muted-foreground shrink-0">
+              {formatSize(item.file.size)}
+            </span>
+            {item.customized && (
+              <Badge variant="secondary" className="text-xs shrink-0">
+                Personalizado
+              </Badge>
+            )}
+          </div>
+          
+          {/* Progress bar */}
+          {isLoading && (
+            <Progress value={item.progress} className="h-1.5 mt-2" />
+          )}
+
+          {/* Scheduled date */}
+          {item.status === "scheduled" && item.scheduledDate && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {format(item.scheduledDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            </p>
+          )}
+
+          {/* Error message */}
+          {item.status === "failed" && item.error && (
+            <p className="text-xs text-destructive mt-1 truncate">{item.error}</p>
+          )}
+        </div>
+
+        {/* Status */}
+        <div className={cn("flex items-center gap-1.5", config.color)}>
+          <StatusIcon className={cn("w-4 h-4", isLoading && "animate-spin")} />
+          <span className="text-xs font-medium hidden sm:inline">{config.label}</span>
+        </div>
+
+        {/* Edit button */}
+        {canEdit && onUpdate && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={toggleExpand}
+            disabled={disabled}
+          >
+            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+          </Button>
         )}
 
-        {/* Scheduled date */}
-        {item.status === "scheduled" && item.scheduledDate && (
-          <p className="text-xs text-muted-foreground mt-1">
-            {format(item.scheduledDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-          </p>
-        )}
-
-        {/* Error message */}
-        {item.status === "failed" && item.error && (
-          <p className="text-xs text-destructive mt-1 truncate">{item.error}</p>
+        {/* Remove button */}
+        {canEdit && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => onRemove(item.id)}
+            disabled={disabled}
+          >
+            <X className="w-4 h-4" />
+          </Button>
         )}
       </div>
 
-      {/* Status */}
-      <div className={cn("flex items-center gap-1.5", config.color)}>
-        <StatusIcon className={cn("w-4 h-4", isLoading && "animate-spin")} />
-        <span className="text-xs font-medium hidden sm:inline">{config.label}</span>
-      </div>
-
-      {/* Remove button */}
-      {canRemove && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          onClick={() => onRemove(item.id)}
-          disabled={disabled}
-        >
-          <X className="w-4 h-4" />
-        </Button>
+      {/* Expanded edit section */}
+      {isExpanded && canEdit && (
+        <div className="px-3 pb-3 pt-0 space-y-3 border-t border-border/50 mt-0">
+          <div className="pt-3 space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Título personalizado
+            </label>
+            <Input
+              value={localTitle}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              placeholder={`Vídeo #${index + 1}`}
+              disabled={disabled}
+              className="h-9"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Descrição personalizada
+            </label>
+            <Textarea
+              value={localDescription}
+              onChange={(e) => handleDescriptionChange(e.target.value)}
+              placeholder="Descrição única para este vídeo..."
+              rows={2}
+              disabled={disabled}
+              className="resize-none"
+            />
+          </div>
+        </div>
       )}
     </div>
   );
