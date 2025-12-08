@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Upload as UploadIcon, X, Play, Scissors, Type, Share2, CalendarClock, Loader2, ChevronLeft, ChevronRight, Images, Square, RectangleVertical, Smartphone, Monitor } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -73,6 +73,9 @@ export default function Upload() {
   const [isUploading, setIsUploading] = useState(false);
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
+  const [autoPostAll, setAutoPostAll] = useState(() => {
+    return localStorage.getItem('autoPostAll') === 'true';
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Calculate total caption length
@@ -85,6 +88,27 @@ export default function Upload() {
   const createScheduledPost = useCreateScheduledPost();
   const uploadVideo = useUploadVideo();
   const createVideo = useCreateVideo();
+
+  // Get connected accounts
+  const connectedAccounts = accounts?.filter(a => a.is_connected) || [];
+  const connectedCount = connectedAccounts.length;
+
+  // Auto-select all connected platforms when autoPostAll is enabled
+  useEffect(() => {
+    if (autoPostAll && connectedAccounts.length > 0) {
+      const connectedPlatforms = connectedAccounts.map(a => a.platform);
+      setSelectedPlatforms(connectedPlatforms);
+    }
+  }, [autoPostAll, accounts]);
+
+  // Handle auto-post toggle change with persistence
+  const handleAutoPostChange = (value: boolean) => {
+    setAutoPostAll(value);
+    localStorage.setItem('autoPostAll', String(value));
+    if (!value) {
+      setSelectedPlatforms([]);
+    }
+  };
 
   const isValidMediaFile = (file: File) => {
     return file.type.startsWith("video/") || file.type.startsWith("image/");
@@ -476,6 +500,7 @@ export default function Upload() {
     setSelectedPlatforms([]);
     setIsScheduled(false);
     setScheduledDate(undefined);
+    // Don't reset autoPostAll - keep user preference
   };
 
   const clearMedia = () => {
@@ -770,6 +795,26 @@ export default function Upload() {
             <Share2 className="w-4 h-4" />
             Publicar em
           </label>
+          
+          {/* Auto-Post All Toggle */}
+          {!accountsLoading && connectedCount > 0 && (
+            <div className="flex items-center justify-between p-3 mb-3 rounded-xl bg-primary/10 border border-primary/20">
+              <div className="flex items-center gap-2">
+                <Share2 className="w-4 h-4 text-primary" />
+                <div>
+                  <span className="text-sm font-medium text-foreground">Publicar em todas</span>
+                  <span className="text-xs text-muted-foreground ml-2">
+                    ({connectedCount} {connectedCount === 1 ? 'conectada' : 'conectadas'})
+                  </span>
+                </div>
+              </div>
+              <Switch 
+                checked={autoPostAll} 
+                onCheckedChange={handleAutoPostChange} 
+              />
+            </div>
+          )}
+
           {accountsLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -778,27 +823,32 @@ export default function Upload() {
             <div className="grid grid-cols-2 gap-3">
               {accounts?.map((account) => {
                 const Icon = platformIcons[account.platform];
+                const isSelected = selectedPlatforms.includes(account.platform);
+                const isDisabled = !account.is_connected || autoPostAll;
+                
                 return (
                   <div
                     key={account.id}
-                    onClick={() => account.is_connected && handlePlatformToggle(account.platform)}
+                    onClick={() => !isDisabled && handlePlatformToggle(account.platform)}
                     role="button"
-                    tabIndex={account.is_connected ? 0 : -1}
+                    tabIndex={!isDisabled ? 0 : -1}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
-                        account.is_connected && handlePlatformToggle(account.platform);
+                        !isDisabled && handlePlatformToggle(account.platform);
                       }
                     }}
                     className={cn(
-                      "card-elevated p-4 flex items-center gap-3 transition-all duration-300 cursor-pointer",
-                      selectedPlatforms.includes(account.platform) && "border-primary glow",
-                      !account.is_connected && "opacity-50 cursor-not-allowed"
+                      "card-elevated p-4 flex items-center gap-3 transition-all duration-300",
+                      isSelected && "border-primary glow",
+                      !account.is_connected && "opacity-50 cursor-not-allowed",
+                      account.is_connected && !autoPostAll && "cursor-pointer",
+                      autoPostAll && account.is_connected && "opacity-80"
                     )}
                   >
                     <Checkbox
-                      checked={selectedPlatforms.includes(account.platform)}
-                      disabled={!account.is_connected}
-                      onCheckedChange={() => account.is_connected && handlePlatformToggle(account.platform)}
+                      checked={isSelected}
+                      disabled={isDisabled}
+                      onCheckedChange={() => !isDisabled && handlePlatformToggle(account.platform)}
                     />
                     <Icon className="w-5 h-5" />
                     <span className="text-sm font-medium capitalize">{account.platform}</span>
