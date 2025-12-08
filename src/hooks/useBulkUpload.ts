@@ -13,6 +13,9 @@ export interface BulkUploadItem {
   scheduledDate?: Date;
   error?: string;
   customized?: boolean;
+  // Individual scheduling options
+  scheduleMode?: "immediate" | "scheduled";
+  individualScheduledDate?: Date;
 }
 
 export interface BulkUploadConfig {
@@ -99,7 +102,12 @@ export function useBulkUpload() {
     ));
   };
 
-  const updateItem = useCallback((id: string, updates: { title?: string; description?: string }) => {
+  const updateItem = useCallback((id: string, updates: { 
+    title?: string; 
+    description?: string;
+    scheduleMode?: "immediate" | "scheduled";
+    individualScheduledDate?: Date;
+  }) => {
     setQueue(prev => prev.map(item => 
       item.id === id ? { ...item, ...updates, customized: true } : item
     ));
@@ -131,11 +139,18 @@ export function useBulkUpload() {
   ) => {
     if (!user?.id) throw new Error("Not authenticated");
 
+    // Determine schedule mode and date for this item
+    const itemScheduleMode = item.scheduleMode ?? config.scheduleMode;
+    
     let scheduledDate: Date;
     
-    if (config.scheduleMode === "immediate") {
+    if (itemScheduleMode === "immediate") {
       scheduledDate = new Date();
+    } else if (item.individualScheduledDate) {
+      // Use individual date if set
+      scheduledDate = new Date(item.individualScheduledDate);
     } else if (config.startDate) {
+      // Fall back to batch config
       scheduledDate = new Date(config.startDate);
       scheduledDate.setHours(scheduledDate.getHours() + (index * config.intervalHours));
     } else {
@@ -152,7 +167,7 @@ export function useBulkUpload() {
         description: item.description || null,
         platforms: config.platforms,
         scheduled_date: scheduledDate.toISOString(),
-        status: config.scheduleMode === "immediate" ? "publishing" : "scheduled",
+        status: itemScheduleMode === "immediate" ? "publishing" : "scheduled",
         media_type: "video",
       });
 
@@ -224,8 +239,11 @@ export function useBulkUpload() {
           description: item.description,
         });
 
+        // Determine this item's schedule mode
+        const itemScheduleMode = item.scheduleMode ?? config.scheduleMode;
+
         // Schedule or publish phase
-        if (config.scheduleMode === "immediate") {
+        if (itemScheduleMode === "immediate") {
           updateItemStatus(item.id, { status: "publishing", progress: 75 });
           await publishImmediately({ ...item, fileUrl }, config);
           updateItemStatus(item.id, { status: "published", progress: 100 });

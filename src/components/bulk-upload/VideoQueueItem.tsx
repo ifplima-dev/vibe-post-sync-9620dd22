@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { X, CheckCircle, Loader2, AlertCircle, Clock, Upload, Calendar, Pencil, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, CheckCircle, Loader2, AlertCircle, Clock, Upload, Calendar, Pencil, ChevronDown, ChevronUp, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { BulkUploadItem } from "@/hooks/useBulkUpload";
+import { DateTimePicker } from "@/components/scheduler/DateTimePicker";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -14,7 +15,12 @@ interface VideoQueueItemProps {
   item: BulkUploadItem;
   index: number;
   onRemove: (id: string) => void;
-  onUpdate?: (id: string, updates: { title?: string; description?: string }) => void;
+  onUpdate?: (id: string, updates: { 
+    title?: string; 
+    description?: string;
+    scheduleMode?: "immediate" | "scheduled";
+    individualScheduledDate?: Date;
+  }) => void;
   disabled?: boolean;
 }
 
@@ -33,6 +39,18 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
   const [isExpanded, setIsExpanded] = useState(false);
   const [localTitle, setLocalTitle] = useState(item.title || `Vídeo #${index + 1}`);
   const [localDescription, setLocalDescription] = useState(item.description || "");
+  const [localScheduleMode, setLocalScheduleMode] = useState<"immediate" | "scheduled">(
+    item.scheduleMode || "scheduled"
+  );
+  const [localScheduledDate, setLocalScheduledDate] = useState<Date | undefined>(
+    item.individualScheduledDate
+  );
+
+  // Sync local state when item changes
+  useEffect(() => {
+    if (item.scheduleMode) setLocalScheduleMode(item.scheduleMode);
+    if (item.individualScheduledDate) setLocalScheduledDate(item.individualScheduledDate);
+  }, [item.scheduleMode, item.individualScheduledDate]);
 
   const config = statusConfig[item.status];
   const StatusIcon = config.icon;
@@ -50,12 +68,42 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
 
   const handleTitleChange = (value: string) => {
     setLocalTitle(value);
-    onUpdate?.(item.id, { title: value, description: localDescription });
+    onUpdate?.(item.id, { 
+      title: value, 
+      description: localDescription,
+      scheduleMode: localScheduleMode,
+      individualScheduledDate: localScheduledDate,
+    });
   };
 
   const handleDescriptionChange = (value: string) => {
     setLocalDescription(value);
-    onUpdate?.(item.id, { title: localTitle, description: value });
+    onUpdate?.(item.id, { 
+      title: localTitle, 
+      description: value,
+      scheduleMode: localScheduleMode,
+      individualScheduledDate: localScheduledDate,
+    });
+  };
+
+  const handleScheduleModeChange = (mode: "immediate" | "scheduled") => {
+    setLocalScheduleMode(mode);
+    onUpdate?.(item.id, { 
+      title: localTitle, 
+      description: localDescription,
+      scheduleMode: mode,
+      individualScheduledDate: mode === "scheduled" ? localScheduledDate : undefined,
+    });
+  };
+
+  const handleDateChange = (date: Date | undefined) => {
+    setLocalScheduledDate(date);
+    onUpdate?.(item.id, { 
+      title: localTitle, 
+      description: localDescription,
+      scheduleMode: localScheduleMode,
+      individualScheduledDate: date,
+    });
   };
 
   const toggleExpand = () => {
@@ -63,6 +111,20 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
       setIsExpanded(!isExpanded);
     }
   };
+
+  // Get schedule display label
+  const getScheduleLabel = () => {
+    if (!item.customized) return null;
+    if (item.scheduleMode === "immediate") {
+      return "Publicar agora";
+    }
+    if (item.individualScheduledDate) {
+      return format(item.individualScheduledDate, "dd/MM HH:mm");
+    }
+    return null;
+  };
+
+  const scheduleLabel = getScheduleLabel();
 
   return (
     <div 
@@ -83,7 +145,7 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
 
         {/* Video info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium truncate">{item.file.name}</span>
             <span className="text-xs text-muted-foreground shrink-0">
               {formatSize(item.file.size)}
@@ -91,6 +153,16 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
             {item.customized && (
               <Badge variant="secondary" className="text-xs shrink-0">
                 Personalizado
+              </Badge>
+            )}
+            {scheduleLabel && (
+              <Badge variant="outline" className="text-xs shrink-0">
+                {item.scheduleMode === "immediate" ? (
+                  <Play className="w-3 h-3 mr-1" />
+                ) : (
+                  <Calendar className="w-3 h-3 mr-1" />
+                )}
+                {scheduleLabel}
               </Badge>
             )}
           </div>
@@ -148,7 +220,8 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
 
       {/* Expanded edit section */}
       {isExpanded && canEdit && (
-        <div className="px-3 pb-3 pt-0 space-y-3 border-t border-border/50 mt-0">
+        <div className="px-3 pb-3 pt-0 space-y-4 border-t border-border/50 mt-0">
+          {/* Title */}
           <div className="pt-3 space-y-2">
             <label className="text-xs font-medium text-muted-foreground">
               Título personalizado
@@ -161,6 +234,8 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
               className="h-9"
             />
           </div>
+
+          {/* Description */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground">
               Descrição personalizada
@@ -173,6 +248,51 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
               disabled={disabled}
               className="resize-none"
             />
+          </div>
+
+          {/* Schedule Options */}
+          <div className="space-y-3">
+            <label className="text-xs font-medium text-muted-foreground">
+              Quando publicar
+            </label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={localScheduleMode === "immediate" ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleScheduleModeChange("immediate")}
+                disabled={disabled}
+                className="flex-1"
+              >
+                <Play className="w-3 h-3 mr-1.5" />
+                Publicar agora
+              </Button>
+              <Button
+                type="button"
+                variant={localScheduleMode === "scheduled" ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleScheduleModeChange("scheduled")}
+                disabled={disabled}
+                className="flex-1"
+              >
+                <Calendar className="w-3 h-3 mr-1.5" />
+                Agendar
+              </Button>
+            </div>
+
+            {/* Date picker for scheduled mode */}
+            {localScheduleMode === "scheduled" && (
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Data e hora
+                </label>
+                <DateTimePicker
+                  value={localScheduledDate}
+                  onChange={handleDateChange}
+                  minDate={new Date()}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
