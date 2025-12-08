@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Upload from "./pages/Upload";
+import BulkUpload from "./pages/BulkUpload";
 import Analytics from "./pages/Analytics";
 import Profile from "./pages/Profile";
 import Scheduled from "./pages/Scheduled";
@@ -48,6 +49,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Upload />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/bulk-upload"
+                element={
+                  <ProtectedRoute>
+                    <BulkUpload />
                   </ProtectedRoute>
                 }
               />

@@ -1,4 +1,4 @@
-import { Home, Upload, BarChart3, User, CalendarClock } from "lucide-react";
+import { Home, Upload, BarChart3, User, CalendarClock, FolderUp } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { usePendingPostsCount } from "@/hooks/useScheduledPosts";
@@ -6,8 +6,8 @@ import { usePendingPostsCount } from "@/hooks/useScheduledPosts";
 const navItems = [
   { icon: Home, label: "Início", path: "/" },
   { icon: Upload, label: "Upload", path: "/upload" },
+  { icon: FolderUp, label: "Massa", path: "/bulk-upload" },
   { icon: CalendarClock, label: "Agenda", path: "/scheduled" },
-  { icon: BarChart3, label: "Analytics", path: "/analytics" },
   { icon: User, label: "Perfil", path: "/profile" },
 ];
 
