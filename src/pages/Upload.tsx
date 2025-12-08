@@ -22,6 +22,7 @@ import {
   FacebookIcon,
 } from "@/components/icons/SocialIcons";
 import { cn } from "@/lib/utils";
+import { brasiliaToUTC } from "@/lib/timezone";
 
 const platformIcons: Record<string, typeof InstagramIcon> = {
   instagram: InstagramIcon,
@@ -417,6 +418,9 @@ export default function Upload() {
       const primaryFileName = mediaFiles[0].name;
 
       if (isScheduled && scheduledDate) {
+        // Convert to UTC for storage (user selects in Brasília time)
+        const utcDate = brasiliaToUTC(scheduledDate);
+        
         // Create scheduled post with carousel support
         await createScheduledPost.mutateAsync({
           video_file_url: primaryUrl,
@@ -424,7 +428,7 @@ export default function Upload() {
           title,
           description: description || null,
           platforms: selectedPlatforms,
-          scheduled_date: scheduledDate.toISOString(),
+          scheduled_date: utcDate.toISOString(),
           video_id: null,
           media_urls: uploadedUrls.length > 1 ? uploadedUrls : null,
           media_type: mediaType,

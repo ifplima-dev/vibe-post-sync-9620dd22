@@ -4,6 +4,7 @@ import { Calendar, Clock, MoreVertical, Play, Trash2, Edit, Image, Video } from 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { utcToBrasilia } from "@/lib/timezone";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,6 +71,8 @@ export function ScheduledPostCard({
     failed: "Falhou",
   };
 
+  // Convert UTC date to Brasília for display
+  const brasiliaDate = utcToBrasilia(post.scheduledDate);
   const isPast = new Date(post.scheduledDate) < new Date();
   
   // Determine media type from URL or explicit field
@@ -162,11 +165,11 @@ export function ScheduledPostCard({
           <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <Calendar className="h-3.5 w-3.5" />
-              <span>{format(post.scheduledDate, "dd MMM", { locale: ptBR })}</span>
+              <span>{format(brasiliaDate, "dd MMM", { locale: ptBR })}</span>
             </div>
             <div className="flex items-center gap-1">
               <Clock className="h-3.5 w-3.5" />
-              <span>{format(post.scheduledDate, "HH:mm")}</span>
+              <span>{format(brasiliaDate, "HH:mm")} (BRT)</span>
             </div>
             {isPast && post.status === "scheduled" && (
               <Badge variant="outline" className="text-xs text-yellow-500 border-yellow-500/50">
