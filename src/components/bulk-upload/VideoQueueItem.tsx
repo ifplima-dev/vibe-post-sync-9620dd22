@@ -119,7 +119,7 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
       return "Publicar agora";
     }
     if (item.individualScheduledDate) {
-      return format(item.individualScheduledDate, "dd/MM HH:mm");
+      return format(item.individualScheduledDate, "dd/MM HH:mm") + " (BRT)";
     }
     return null;
   };

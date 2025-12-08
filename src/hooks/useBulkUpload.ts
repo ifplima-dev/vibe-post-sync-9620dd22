@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { brasiliaToUTC } from "@/lib/timezone";
 
 export interface BulkUploadItem {
   id: string;
@@ -157,6 +158,9 @@ export function useBulkUpload() {
       throw new Error("Start date required for scheduling");
     }
 
+    // Convert to UTC for storage (user selects in Brasília time)
+    const utcDate = brasiliaToUTC(scheduledDate);
+
     const { error } = await supabase
       .from("scheduled_posts")
       .insert({
@@ -166,7 +170,7 @@ export function useBulkUpload() {
         title: item.title,
         description: item.description || null,
         platforms: config.platforms,
-        scheduled_date: scheduledDate.toISOString(),
+        scheduled_date: utcDate.toISOString(),
         status: itemScheduleMode === "immediate" ? "publishing" : "scheduled",
         media_type: "video",
       });

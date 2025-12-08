@@ -68,7 +68,10 @@ export function DateTimePicker({ value, onChange, minDate }: DateTimePickerProps
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
           {value ? (
-            format(value, "PPP 'às' HH:mm", { locale: ptBR })
+            <>
+              {format(value, "PPP 'às' HH:mm", { locale: ptBR })}
+              <span className="text-xs text-muted-foreground ml-1">(Brasília)</span>
+            </>
           ) : (
             <span>Selecione data e hora</span>
           )}
@@ -86,7 +89,7 @@ export function DateTimePicker({ value, onChange, minDate }: DateTimePickerProps
         <div className="border-t border-border p-3">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Horário:</span>
+            <span className="text-sm text-muted-foreground">Horário (Brasília):</span>
             <Select
               value={selectedHour}
               onValueChange={(h) => handleTimeChange(h, selectedMinute)}
