@@ -14,18 +14,10 @@ export interface BulkUploadItem {
   scheduledDate?: Date;
   error?: string;
   customized?: boolean;
-  // Individual scheduling options
-  scheduleMode?: "immediate" | "scheduled";
-  individualScheduledDate?: Date;
-}
-
-export interface BulkUploadConfig {
-  baseTitle: string;
-  description: string;
+  // Individual options
   platforms: string[];
   scheduleMode: "immediate" | "scheduled";
-  startDate?: Date;
-  intervalHours: number;
+  individualScheduledDate?: Date;
 }
 
 export interface BulkUploadProgress {
@@ -51,7 +43,7 @@ export function useBulkUpload() {
   });
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const addToQueue = useCallback((files: File[]): { success: boolean; error?: string } => {
+  const addToQueue = useCallback((files: File[], defaultPlatforms: string[] = []): { success: boolean; error?: string } => {
     if (files.length > MAX_VIDEOS) {
       return { success: false, error: `Máximo de ${MAX_VIDEOS} vídeos por sessão.` };
     }
@@ -68,15 +60,15 @@ export function useBulkUpload() {
       description: "",
       status: "pending",
       progress: 0,
+      platforms: defaultPlatforms,
+      scheduleMode: "scheduled",
     }));
 
-    setQueue(items);
-    setProgress({
-      total: items.length,
-      completed: 0,
-      failed: 0,
-      uploading: 0,
-    });
+    setQueue(prev => [...prev, ...items]);
+    setProgress(prev => ({
+      ...prev,
+      total: prev.total + items.length,
+    }));
 
     return { success: true };
   }, []);
@@ -108,6 +100,7 @@ export function useBulkUpload() {
     description?: string;
     scheduleMode?: "immediate" | "scheduled";
     individualScheduledDate?: Date;
+    platforms?: string[];
   }) => {
     setQueue(prev => prev.map(item => 
       item.id === id ? { ...item, ...updates, customized: true } : item
@@ -133,29 +126,18 @@ export function useBulkUpload() {
     return urlData.publicUrl;
   };
 
-  const schedulePost = async (
-    item: BulkUploadItem,
-    config: BulkUploadConfig,
-    index: number
-  ) => {
+  const schedulePost = async (item: BulkUploadItem) => {
     if (!user?.id) throw new Error("Not authenticated");
+    if (item.platforms.length === 0) throw new Error("Nenhuma plataforma selecionada");
 
-    // Determine schedule mode and date for this item
-    const itemScheduleMode = item.scheduleMode ?? config.scheduleMode;
-    
     let scheduledDate: Date;
     
-    if (itemScheduleMode === "immediate") {
+    if (item.scheduleMode === "immediate") {
       scheduledDate = new Date();
     } else if (item.individualScheduledDate) {
-      // Use individual date if set
       scheduledDate = new Date(item.individualScheduledDate);
-    } else if (config.startDate) {
-      // Fall back to batch config
-      scheduledDate = new Date(config.startDate);
-      scheduledDate.setHours(scheduledDate.getHours() + (index * config.intervalHours));
     } else {
-      throw new Error("Start date required for scheduling");
+      throw new Error("Data de agendamento obrigatória");
     }
 
     // Convert to UTC for storage (user selects in Brasília time)
@@ -167,11 +149,11 @@ export function useBulkUpload() {
         user_id: user.id,
         video_file_url: item.fileUrl!,
         video_name: item.file.name,
-        title: item.title,
+        title: item.title || item.file.name,
         description: item.description || null,
-        platforms: config.platforms,
+        platforms: item.platforms,
         scheduled_date: utcDate.toISOString(),
-        status: itemScheduleMode === "immediate" ? "publishing" : "scheduled",
+        status: item.scheduleMode === "immediate" ? "publishing" : "scheduled",
         media_type: "video",
       });
 
@@ -180,13 +162,10 @@ export function useBulkUpload() {
     return scheduledDate;
   };
 
-  const publishImmediately = async (
-    item: BulkUploadItem,
-    config: BulkUploadConfig
-  ) => {
+  const publishImmediately = async (item: BulkUploadItem) => {
     const caption = item.title + (item.description ? "\n\n" + item.description : "");
 
-    for (const platform of config.platforms) {
+    for (const platform of item.platforms) {
       const { error } = await supabase.functions.invoke("meta-publish", {
         body: {
           userId: user?.id,
@@ -201,33 +180,18 @@ export function useBulkUpload() {
     }
   };
 
-  const processQueue = async (config: BulkUploadConfig) => {
+  const processQueue = async () => {
     if (!user?.id || queue.length === 0) return;
 
     setIsProcessing(true);
     abortControllerRef.current = new AbortController();
 
-    // Apply titles with numbering (only for non-customized items)
-    const updatedQueue = queue.map((item, index) => {
-      if (item.customized) {
-        return item; // Keep customized title/description
-      }
-      return {
-        ...item,
-        title: config.baseTitle.includes("{n}") 
-          ? config.baseTitle.replace("{n}", String(index + 1))
-          : `${config.baseTitle} #${index + 1}`,
-        description: config.description,
-      };
-    });
-    setQueue(updatedQueue);
+    // Process only pending items
+    const pendingItems = queue.filter(item => item.status === "pending");
+    let completedCount = progress.completed;
+    let failedCount = progress.failed;
 
-    // Process in batches
-    const pendingItems = [...updatedQueue];
-    let completedCount = 0;
-    let failedCount = 0;
-
-    const processItem = async (item: BulkUploadItem, index: number) => {
+    const processItem = async (item: BulkUploadItem) => {
       try {
         // Upload phase
         updateItemStatus(item.id, { status: "uploading", progress: 0 });
@@ -239,21 +203,16 @@ export function useBulkUpload() {
           status: "uploaded", 
           progress: 50, 
           fileUrl,
-          title: item.title,
-          description: item.description,
         });
 
-        // Determine this item's schedule mode
-        const itemScheduleMode = item.scheduleMode ?? config.scheduleMode;
-
         // Schedule or publish phase
-        if (itemScheduleMode === "immediate") {
+        if (item.scheduleMode === "immediate") {
           updateItemStatus(item.id, { status: "publishing", progress: 75 });
-          await publishImmediately({ ...item, fileUrl }, config);
+          await publishImmediately({ ...item, fileUrl });
           updateItemStatus(item.id, { status: "published", progress: 100 });
         } else {
           updateItemStatus(item.id, { status: "scheduling", progress: 75 });
-          const scheduledDate = await schedulePost({ ...item, fileUrl }, config, index);
+          const scheduledDate = await schedulePost({ ...item, fileUrl });
           updateItemStatus(item.id, { status: "scheduled", progress: 100, scheduledDate });
         }
 
@@ -285,19 +244,15 @@ export function useBulkUpload() {
       chunks.push(pendingItems.slice(i, i + MAX_PARALLEL_UPLOADS));
     }
 
-    let globalIndex = 0;
     for (const chunk of chunks) {
-      await Promise.all(
-        chunk.map((item, chunkIndex) => processItem(item, globalIndex + chunkIndex))
-      );
-      globalIndex += chunk.length;
+      await Promise.all(chunk.map(item => processItem(item)));
     }
 
     setIsProcessing(false);
     setProgress(p => ({ ...p, currentFile: undefined }));
   };
 
-  const retryFailed = async (config: BulkUploadConfig) => {
+  const retryFailed = async () => {
     const failedItems = queue.filter(item => item.status === "failed");
     if (failedItems.length === 0) return;
 
@@ -309,10 +264,9 @@ export function useBulkUpload() {
     setProgress(p => ({
       ...p,
       failed: 0,
-      completed: p.completed,
     }));
 
-    await processQueue(config);
+    await processQueue();
   };
 
   const cancelProcessing = () => {

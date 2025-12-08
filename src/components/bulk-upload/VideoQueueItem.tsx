@@ -6,10 +6,24 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { BulkUploadItem } from "@/hooks/useBulkUpload";
 import { DateTimePicker } from "@/components/scheduler/DateTimePicker";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import {
+  InstagramIcon,
+  TikTokIcon,
+  YouTubeIcon,
+  FacebookIcon,
+} from "@/components/icons/SocialIcons";
+
+interface ConnectedAccount {
+  id: string;
+  platform: string;
+  is_connected: boolean;
+  platform_username?: string | null;
+}
 
 interface VideoQueueItemProps {
   item: BulkUploadItem;
@@ -20,8 +34,10 @@ interface VideoQueueItemProps {
     description?: string;
     scheduleMode?: "immediate" | "scheduled";
     individualScheduledDate?: Date;
+    platforms?: string[];
   }) => void;
   disabled?: boolean;
+  connectedAccounts: ConnectedAccount[];
 }
 
 const statusConfig = {
@@ -35,9 +51,16 @@ const statusConfig = {
   failed: { icon: AlertCircle, color: "text-destructive", label: "Falhou" },
 };
 
-export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: VideoQueueItemProps) {
+const platformIcons: Record<string, typeof InstagramIcon> = {
+  instagram: InstagramIcon,
+  tiktok: TikTokIcon,
+  youtube: YouTubeIcon,
+  facebook: FacebookIcon,
+};
+
+export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled, connectedAccounts }: VideoQueueItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [localTitle, setLocalTitle] = useState(item.title || `Vídeo #${index + 1}`);
+  const [localTitle, setLocalTitle] = useState(item.title || "");
   const [localDescription, setLocalDescription] = useState(item.description || "");
   const [localScheduleMode, setLocalScheduleMode] = useState<"immediate" | "scheduled">(
     item.scheduleMode || "scheduled"
@@ -45,12 +68,16 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
   const [localScheduledDate, setLocalScheduledDate] = useState<Date | undefined>(
     item.individualScheduledDate
   );
+  const [localPlatforms, setLocalPlatforms] = useState<string[]>(item.platforms || []);
 
   // Sync local state when item changes
   useEffect(() => {
     if (item.scheduleMode) setLocalScheduleMode(item.scheduleMode);
     if (item.individualScheduledDate) setLocalScheduledDate(item.individualScheduledDate);
-  }, [item.scheduleMode, item.individualScheduledDate]);
+    if (item.platforms) setLocalPlatforms(item.platforms);
+    if (item.title) setLocalTitle(item.title);
+    if (item.description) setLocalDescription(item.description);
+  }, [item.scheduleMode, item.individualScheduledDate, item.platforms, item.title, item.description]);
 
   const config = statusConfig[item.status];
   const StatusIcon = config.icon;
@@ -66,31 +93,35 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const handleUpdate = (updates: Partial<{
+    title: string;
+    description: string;
+    scheduleMode: "immediate" | "scheduled";
+    individualScheduledDate?: Date;
+    platforms: string[];
+  }>) => {
+    onUpdate?.(item.id, {
+      title: updates.title ?? localTitle,
+      description: updates.description ?? localDescription,
+      scheduleMode: updates.scheduleMode ?? localScheduleMode,
+      individualScheduledDate: updates.individualScheduledDate ?? localScheduledDate,
+      platforms: updates.platforms ?? localPlatforms,
+    });
+  };
+
   const handleTitleChange = (value: string) => {
     setLocalTitle(value);
-    onUpdate?.(item.id, { 
-      title: value, 
-      description: localDescription,
-      scheduleMode: localScheduleMode,
-      individualScheduledDate: localScheduledDate,
-    });
+    handleUpdate({ title: value });
   };
 
   const handleDescriptionChange = (value: string) => {
     setLocalDescription(value);
-    onUpdate?.(item.id, { 
-      title: localTitle, 
-      description: value,
-      scheduleMode: localScheduleMode,
-      individualScheduledDate: localScheduledDate,
-    });
+    handleUpdate({ description: value });
   };
 
   const handleScheduleModeChange = (mode: "immediate" | "scheduled") => {
     setLocalScheduleMode(mode);
-    onUpdate?.(item.id, { 
-      title: localTitle, 
-      description: localDescription,
+    handleUpdate({ 
       scheduleMode: mode,
       individualScheduledDate: mode === "scheduled" ? localScheduledDate : undefined,
     });
@@ -98,12 +129,15 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
 
   const handleDateChange = (date: Date | undefined) => {
     setLocalScheduledDate(date);
-    onUpdate?.(item.id, { 
-      title: localTitle, 
-      description: localDescription,
-      scheduleMode: localScheduleMode,
-      individualScheduledDate: date,
-    });
+    handleUpdate({ individualScheduledDate: date });
+  };
+
+  const handlePlatformToggle = (platform: string) => {
+    const newPlatforms = localPlatforms.includes(platform)
+      ? localPlatforms.filter(p => p !== platform)
+      : [...localPlatforms, platform];
+    setLocalPlatforms(newPlatforms);
+    handleUpdate({ platforms: newPlatforms });
   };
 
   const toggleExpand = () => {
@@ -114,17 +148,17 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
 
   // Get schedule display label
   const getScheduleLabel = () => {
-    if (!item.customized) return null;
     if (item.scheduleMode === "immediate") {
       return "Publicar agora";
     }
     if (item.individualScheduledDate) {
-      return format(item.individualScheduledDate, "dd/MM HH:mm") + " (BRT)";
+      return format(item.individualScheduledDate, "dd/MM HH:mm", { locale: ptBR }) + " (BRT)";
     }
     return null;
   };
 
   const scheduleLabel = getScheduleLabel();
+  const platformCount = item.platforms?.length || 0;
 
   return (
     <div 
@@ -150,13 +184,17 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
             <span className="text-xs text-muted-foreground shrink-0">
               {formatSize(item.file.size)}
             </span>
-            {item.customized && (
-              <Badge variant="secondary" className="text-xs shrink-0">
-                Personalizado
+          </div>
+          
+          {/* Badges row */}
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            {platformCount > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {platformCount} plataforma{platformCount > 1 ? "s" : ""}
               </Badge>
             )}
             {scheduleLabel && (
-              <Badge variant="outline" className="text-xs shrink-0">
+              <Badge variant="outline" className="text-xs">
                 {item.scheduleMode === "immediate" ? (
                   <Play className="w-3 h-3 mr-1" />
                 ) : (
@@ -224,12 +262,12 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
           {/* Title */}
           <div className="pt-3 space-y-2">
             <label className="text-xs font-medium text-muted-foreground">
-              Título personalizado
+              Título
             </label>
             <Input
               value={localTitle}
               onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder={`Vídeo #${index + 1}`}
+              placeholder={`Título do vídeo ${index + 1}`}
               disabled={disabled}
               className="h-9"
             />
@@ -238,16 +276,47 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
           {/* Description */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground">
-              Descrição personalizada
+              Descrição
             </label>
             <Textarea
               value={localDescription}
               onChange={(e) => handleDescriptionChange(e.target.value)}
-              placeholder="Descrição única para este vídeo..."
+              placeholder="Descrição do vídeo..."
               rows={2}
               disabled={disabled}
               className="resize-none"
             />
+          </div>
+
+          {/* Platforms */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Plataformas
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {connectedAccounts.map((account) => {
+                const Icon = platformIcons[account.platform];
+                const isSelected = localPlatforms.includes(account.platform);
+                return (
+                  <button
+                    key={account.id}
+                    type="button"
+                    onClick={() => handlePlatformToggle(account.platform)}
+                    disabled={disabled}
+                    className={cn(
+                      "flex items-center gap-2 p-2.5 rounded-lg border transition-colors text-left",
+                      isSelected
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <Checkbox checked={isSelected} className="pointer-events-none" />
+                    {Icon && <Icon className="w-4 h-4" />}
+                    <span className="text-xs capitalize">{account.platform}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Schedule Options */}
@@ -265,7 +334,7 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled }: Vi
                 className="flex-1"
               >
                 <Play className="w-3 h-3 mr-1.5" />
-                Publicar agora
+                Agora
               </Button>
               <Button
                 type="button"
