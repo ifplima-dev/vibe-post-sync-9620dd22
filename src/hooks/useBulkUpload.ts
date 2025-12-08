@@ -12,6 +12,7 @@ export interface BulkUploadItem {
   fileUrl?: string;
   scheduledDate?: Date;
   error?: string;
+  customized?: boolean;
 }
 
 export interface BulkUploadConfig {
@@ -98,6 +99,12 @@ export function useBulkUpload() {
     ));
   };
 
+  const updateItem = useCallback((id: string, updates: { title?: string; description?: string }) => {
+    setQueue(prev => prev.map(item => 
+      item.id === id ? { ...item, ...updates, customized: true } : item
+    ));
+  }, []);
+
   const uploadSingleFile = async (item: BulkUploadItem): Promise<string> => {
     const fileName = `${crypto.randomUUID()}-${item.file.name}`;
     
@@ -181,14 +188,19 @@ export function useBulkUpload() {
     setIsProcessing(true);
     abortControllerRef.current = new AbortController();
 
-    // Apply titles with numbering
-    const updatedQueue = queue.map((item, index) => ({
-      ...item,
-      title: config.baseTitle.includes("{n}") 
-        ? config.baseTitle.replace("{n}", String(index + 1))
-        : `${config.baseTitle} #${index + 1}`,
-      description: config.description,
-    }));
+    // Apply titles with numbering (only for non-customized items)
+    const updatedQueue = queue.map((item, index) => {
+      if (item.customized) {
+        return item; // Keep customized title/description
+      }
+      return {
+        ...item,
+        title: config.baseTitle.includes("{n}") 
+          ? config.baseTitle.replace("{n}", String(index + 1))
+          : `${config.baseTitle} #${index + 1}`,
+        description: config.description,
+      };
+    });
     setQueue(updatedQueue);
 
     // Process in batches
@@ -296,6 +308,7 @@ export function useBulkUpload() {
     processQueue,
     retryFailed,
     cancelProcessing,
+    updateItem,
     MAX_VIDEOS,
   };
 }

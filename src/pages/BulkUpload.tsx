@@ -54,6 +54,7 @@ export default function BulkUpload() {
     clearQueue,
     processQueue,
     retryFailed,
+    updateItem,
     MAX_VIDEOS,
   } = useBulkUpload();
 
@@ -253,9 +254,16 @@ export default function BulkUpload() {
         {hasQueue && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium">
-                Fila de vídeos ({queue.length})
-              </h2>
+              <div>
+                <h2 className="text-sm font-medium">
+                  Fila de vídeos ({queue.length})
+                </h2>
+                {queue.filter(item => item.customized).length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {queue.filter(item => item.customized).length} vídeo(s) com título/descrição personalizado(s)
+                  </p>
+                )}
+              </div>
               {!isProcessing && (
                 <Button variant="ghost" size="sm" onClick={clearQueue}>
                   <Trash2 className="w-4 h-4 mr-1" />
@@ -263,13 +271,14 @@ export default function BulkUpload() {
                 </Button>
               )}
             </div>
-            <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
+            <div className="max-h-[400px] overflow-y-auto space-y-2 pr-1">
               {queue.map((item, index) => (
                 <VideoQueueItem
                   key={item.id}
                   item={item}
                   index={index}
                   onRemove={removeFromQueue}
+                  onUpdate={updateItem}
                   disabled={isProcessing}
                 />
               ))}
