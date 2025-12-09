@@ -1,7 +1,15 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { brasiliaToUTC } from "@/lib/timezone";
+import { 
+  StoredQueueItem, 
+  saveQueueItem, 
+  loadQueue, 
+  removeQueueItem as removeFromDB, 
+  clearQueueDB,
+  updateQueueItem 
+} from "@/lib/indexedDB";
 
 export interface BulkUploadItem {
   id: string;
@@ -75,6 +83,42 @@ const generateVideoThumbnail = (file: File): Promise<string | undefined> => {
   });
 };
 
+// Convert stored item to BulkUploadItem
+const storedToItem = (stored: StoredQueueItem): BulkUploadItem => {
+  const file = new File([stored.videoBlob], stored.fileName, { type: stored.fileType });
+  return {
+    id: stored.id,
+    file,
+    title: stored.title,
+    description: stored.description,
+    status: stored.status,
+    progress: 0,
+    platforms: stored.platforms,
+    scheduleMode: stored.scheduleMode,
+    individualScheduledDate: stored.individualScheduledDate ? new Date(stored.individualScheduledDate) : undefined,
+    thumbnailUrl: stored.thumbnailUrl,
+    error: stored.error,
+  };
+};
+
+// Convert BulkUploadItem to stored format
+const itemToStored = (item: BulkUploadItem): StoredQueueItem => ({
+  id: item.id,
+  videoBlob: item.file,
+  fileName: item.file.name,
+  fileSize: item.file.size,
+  fileType: item.file.type,
+  title: item.title,
+  description: item.description,
+  platforms: item.platforms,
+  scheduleMode: item.scheduleMode,
+  individualScheduledDate: item.individualScheduledDate?.toISOString(),
+  thumbnailUrl: item.thumbnailUrl,
+  status: item.status === "failed" ? "failed" : "pending",
+  error: item.error,
+  createdAt: new Date().toISOString(),
+});
+
 export interface BulkUploadProgress {
   total: number;
   completed: number;
@@ -90,6 +134,7 @@ export function useBulkUpload() {
   const { user } = useAuth();
   const [queue, setQueue] = useState<BulkUploadItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoadingQueue, setIsLoadingQueue] = useState(true);
   const [progress, setProgress] = useState<BulkUploadProgress>({
     total: 0,
     completed: 0,
@@ -98,8 +143,32 @@ export function useBulkUpload() {
   });
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Load queue from IndexedDB on mount
+  useEffect(() => {
+    const loadSavedQueue = async () => {
+      try {
+        const savedItems = await loadQueue();
+        if (savedItems.length > 0) {
+          const items = savedItems.map(storedToItem);
+          setQueue(items);
+          setProgress(prev => ({
+            ...prev,
+            total: items.length,
+            failed: items.filter(i => i.status === "failed").length,
+          }));
+        }
+      } catch (error) {
+        console.error("Error loading queue from IndexedDB:", error);
+      } finally {
+        setIsLoadingQueue(false);
+      }
+    };
+
+    loadSavedQueue();
+  }, []);
+
   const addToQueue = useCallback(async (files: File[], defaultPlatforms: string[] = []): Promise<{ success: boolean; error?: string }> => {
-    if (files.length > MAX_VIDEOS) {
+    if (queue.length + files.length > MAX_VIDEOS) {
       return { success: false, error: `Máximo de ${MAX_VIDEOS} vídeos por sessão.` };
     }
 
@@ -108,11 +177,11 @@ export function useBulkUpload() {
       return { success: false, error: "Apenas arquivos de vídeo são permitidos." };
     }
 
-    // Generate thumbnails in parallel
+    // Generate thumbnails and save to IndexedDB in parallel
     const items: BulkUploadItem[] = await Promise.all(
       videoFiles.map(async (file, index) => {
         const thumbnailUrl = await generateVideoThumbnail(file);
-        return {
+        const item: BulkUploadItem = {
           id: `${Date.now()}-${index}`,
           file,
           title: "",
@@ -123,6 +192,11 @@ export function useBulkUpload() {
           scheduleMode: "scheduled" as const,
           thumbnailUrl,
         };
+        
+        // Save to IndexedDB
+        await saveQueueItem(itemToStored(item));
+        
+        return item;
       })
     );
 
@@ -133,9 +207,16 @@ export function useBulkUpload() {
     }));
 
     return { success: true };
-  }, []);
+  }, [queue.length]);
 
-  const removeFromQueue = useCallback((id: string) => {
+  const removeFromQueue = useCallback(async (id: string) => {
+    // Remove from IndexedDB
+    try {
+      await removeFromDB(id);
+    } catch (error) {
+      console.error("Error removing from IndexedDB:", error);
+    }
+    
     setQueue(prev => {
       const newQueue = prev.filter(item => item.id !== id);
       setProgress(p => ({
@@ -146,7 +227,14 @@ export function useBulkUpload() {
     });
   }, []);
 
-  const clearQueue = useCallback(() => {
+  const clearQueue = useCallback(async () => {
+    // Clear IndexedDB
+    try {
+      await clearQueueDB();
+    } catch (error) {
+      console.error("Error clearing IndexedDB:", error);
+    }
+    
     setQueue([]);
     setProgress({ total: 0, completed: 0, failed: 0, uploading: 0 });
   }, []);
@@ -157,13 +245,26 @@ export function useBulkUpload() {
     ));
   };
 
-  const updateItem = useCallback((id: string, updates: { 
+  const updateItem = useCallback(async (id: string, updates: { 
     title?: string; 
     description?: string;
     scheduleMode?: "immediate" | "scheduled";
     individualScheduledDate?: Date;
     platforms?: string[];
   }) => {
+    // Update IndexedDB
+    try {
+      await updateQueueItem(id, {
+        title: updates.title,
+        description: updates.description,
+        scheduleMode: updates.scheduleMode,
+        individualScheduledDate: updates.individualScheduledDate?.toISOString(),
+        platforms: updates.platforms,
+      });
+    } catch (error) {
+      console.error("Error updating IndexedDB:", error);
+    }
+    
     setQueue(prev => prev.map(item => 
       item.id === id ? { ...item, ...updates, customized: true } : item
     ));
@@ -278,6 +379,13 @@ export function useBulkUpload() {
           updateItemStatus(item.id, { status: "scheduled", progress: 100, scheduledDate });
         }
 
+        // Remove from IndexedDB after successful processing
+        try {
+          await removeFromDB(item.id);
+        } catch (dbError) {
+          console.error("Error removing from IndexedDB:", dbError);
+        }
+
         completedCount++;
         setProgress(p => ({ 
           ...p, 
@@ -287,6 +395,17 @@ export function useBulkUpload() {
 
       } catch (error) {
         console.error(`Error processing ${item.file.name}:`, error);
+        
+        // Update status in IndexedDB to failed
+        try {
+          await updateQueueItem(item.id, { 
+            status: "failed", 
+            error: error instanceof Error ? error.message : "Erro desconhecido" 
+          });
+        } catch (dbError) {
+          console.error("Error updating IndexedDB:", dbError);
+        }
+        
         updateItemStatus(item.id, { 
           status: "failed", 
           error: error instanceof Error ? error.message : "Erro desconhecido" 
@@ -318,10 +437,15 @@ export function useBulkUpload() {
     const failedItems = queue.filter(item => item.status === "failed");
     if (failedItems.length === 0) return;
 
-    // Reset failed items
-    failedItems.forEach(item => {
+    // Reset failed items and update IndexedDB
+    for (const item of failedItems) {
       updateItemStatus(item.id, { status: "pending", error: undefined, progress: 0 });
-    });
+      try {
+        await updateQueueItem(item.id, { status: "pending", error: undefined });
+      } catch (error) {
+        console.error("Error updating IndexedDB:", error);
+      }
+    }
 
     setProgress(p => ({
       ...p,
@@ -340,6 +464,7 @@ export function useBulkUpload() {
     queue,
     progress,
     isProcessing,
+    isLoadingQueue,
     addToQueue,
     removeFromQueue,
     clearQueue,
