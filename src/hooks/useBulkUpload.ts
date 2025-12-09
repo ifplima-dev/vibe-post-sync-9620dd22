@@ -271,7 +271,9 @@ export function useBulkUpload() {
   }, []);
 
   const uploadSingleFile = async (item: BulkUploadItem): Promise<string> => {
-    const fileName = `${crypto.randomUUID()}-${item.file.name}`;
+    // Use only UUID + extension to avoid special characters in Supabase Storage path
+    const fileExtension = item.file.name.split('.').pop() || 'mp4';
+    const fileName = `${user?.id}/${crypto.randomUUID()}.${fileExtension}`;
     
     const { data, error } = await supabase.storage
       .from("videos")
