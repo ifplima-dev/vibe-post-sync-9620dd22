@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Upload, FolderUp, Play, Calendar, Trash2, RefreshCw, ArrowLeft, CheckCircle } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Upload, FolderUp, Play, Calendar, Trash2, RefreshCw, ArrowLeft, CheckCircle, Loader2, Database } from "lucide-react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,13 @@ export default function BulkUpload() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: accounts } = useConnectedAccounts();
+  const [showRestoredMessage, setShowRestoredMessage] = useState(false);
   
   const {
     queue,
     progress,
     isProcessing,
+    isLoadingQueue,
     addToQueue,
     removeFromQueue,
     clearQueue,
@@ -29,6 +31,18 @@ export default function BulkUpload() {
   } = useBulkUpload();
 
   const connectedAccounts = accounts?.filter(a => a.is_connected) || [];
+
+  // Show restored message when queue loads with items
+  useEffect(() => {
+    if (!isLoadingQueue && queue.length > 0) {
+      // Check if items were restored (they would have been loaded on mount)
+      const hasRestoredItems = queue.some(item => item.status === "pending" || item.status === "failed");
+      if (hasRestoredItems) {
+        setShowRestoredMessage(true);
+        setTimeout(() => setShowRestoredMessage(false), 5000);
+      }
+    }
+  }, [isLoadingQueue]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -173,34 +187,54 @@ export default function BulkUpload() {
           </div>
         </div>
 
+        {/* Loading state */}
+        {isLoadingQueue && (
+          <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Carregando fila salva...</span>
+          </div>
+        )}
+
+        {/* Restored queue message */}
+        {showRestoredMessage && queue.length > 0 && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm">
+            <Database className="w-4 h-4 text-primary shrink-0" />
+            <span>
+              <strong>{queue.length} vídeo{queue.length > 1 ? "s" : ""}</strong> restaurado{queue.length > 1 ? "s" : ""} da sessão anterior
+            </span>
+          </div>
+        )}
+
         {/* Drop zone */}
-        <div
-          onClick={() => !isProcessing && fileInputRef.current?.click()}
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          className={cn(
-            "border-2 border-dashed rounded-xl p-8 text-center transition-colors",
-            !isProcessing && "cursor-pointer hover:border-primary hover:bg-primary/5",
-            isProcessing && "opacity-50 cursor-not-allowed"
-          )}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="video/*"
-            multiple
-            onChange={handleFileSelect}
-            className="hidden"
-            disabled={isProcessing}
-          />
-          <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-          <p className="text-sm font-medium">
-            {hasQueue ? "Arraste mais vídeos ou clique para adicionar" : "Arraste vídeos aqui ou clique para selecionar"}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Máximo {MAX_VIDEOS} vídeos • Apenas arquivos de vídeo
-          </p>
-        </div>
+        {!isLoadingQueue && (
+          <div
+            onClick={() => !isProcessing && fileInputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={(e) => e.preventDefault()}
+            className={cn(
+              "border-2 border-dashed rounded-xl p-8 text-center transition-colors",
+              !isProcessing && "cursor-pointer hover:border-primary hover:bg-primary/5",
+              isProcessing && "opacity-50 cursor-not-allowed"
+            )}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+              disabled={isProcessing}
+            />
+            <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+            <p className="text-sm font-medium">
+              {hasQueue ? "Arraste mais vídeos ou clique para adicionar" : "Arraste vídeos aqui ou clique para selecionar"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Máximo {MAX_VIDEOS} vídeos • Apenas arquivos de vídeo
+            </p>
+          </div>
+        )}
 
         {/* Progress panel */}
         {hasQueue && (
