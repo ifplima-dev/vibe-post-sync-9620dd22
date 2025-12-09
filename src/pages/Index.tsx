@@ -117,6 +117,13 @@ export default function Index() {
                       alt={video.title}
                       className="w-full h-full object-cover"
                     />
+                  ) : video.file_url ? (
+                    <video 
+                      src={video.file_url} 
+                      className="w-full h-full object-cover"
+                      preload="metadata"
+                      muted
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-muted">
                       <Video className="w-8 h-8 text-muted-foreground/50" />
