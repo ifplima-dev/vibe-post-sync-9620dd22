@@ -18,7 +18,62 @@ export interface BulkUploadItem {
   platforms: string[];
   scheduleMode: "immediate" | "scheduled";
   individualScheduledDate?: Date;
+  thumbnailUrl?: string;
 }
+
+// Generate video thumbnail using Canvas API
+const generateVideoThumbnail = (file: File): Promise<string | undefined> => {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+
+    const objectUrl = URL.createObjectURL(file);
+    video.src = objectUrl;
+
+    video.onloadeddata = () => {
+      // Seek to 1 second to avoid black frames
+      video.currentTime = Math.min(1, video.duration / 2);
+    };
+
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        const aspectRatio = video.videoWidth / video.videoHeight;
+        
+        // Generate thumbnail at 160px width
+        canvas.width = 160;
+        canvas.height = Math.round(160 / aspectRatio);
+        
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const thumbnailUrl = canvas.toDataURL("image/jpeg", 0.7);
+          URL.revokeObjectURL(objectUrl);
+          resolve(thumbnailUrl);
+        } else {
+          URL.revokeObjectURL(objectUrl);
+          resolve(undefined);
+        }
+      } catch {
+        URL.revokeObjectURL(objectUrl);
+        resolve(undefined);
+      }
+    };
+
+    video.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(undefined);
+    };
+
+    // Timeout fallback after 5 seconds
+    setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(undefined);
+    }, 5000);
+  });
+};
 
 export interface BulkUploadProgress {
   total: number;
@@ -43,7 +98,7 @@ export function useBulkUpload() {
   });
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const addToQueue = useCallback((files: File[], defaultPlatforms: string[] = []): { success: boolean; error?: string } => {
+  const addToQueue = useCallback(async (files: File[], defaultPlatforms: string[] = []): Promise<{ success: boolean; error?: string }> => {
     if (files.length > MAX_VIDEOS) {
       return { success: false, error: `Máximo de ${MAX_VIDEOS} vídeos por sessão.` };
     }
@@ -53,16 +108,23 @@ export function useBulkUpload() {
       return { success: false, error: "Apenas arquivos de vídeo são permitidos." };
     }
 
-    const items: BulkUploadItem[] = videoFiles.map((file, index) => ({
-      id: `${Date.now()}-${index}`,
-      file,
-      title: "",
-      description: "",
-      status: "pending",
-      progress: 0,
-      platforms: defaultPlatforms,
-      scheduleMode: "scheduled",
-    }));
+    // Generate thumbnails in parallel
+    const items: BulkUploadItem[] = await Promise.all(
+      videoFiles.map(async (file, index) => {
+        const thumbnailUrl = await generateVideoThumbnail(file);
+        return {
+          id: `${Date.now()}-${index}`,
+          file,
+          title: "",
+          description: "",
+          status: "pending" as const,
+          progress: 0,
+          platforms: defaultPlatforms,
+          scheduleMode: "scheduled" as const,
+          thumbnailUrl,
+        };
+      })
+    );
 
     setQueue(prev => [...prev, ...items]);
     setProgress(prev => ({

@@ -30,14 +30,14 @@ export default function BulkUpload() {
 
   const connectedAccounts = accounts?.filter(a => a.is_connected) || [];
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
     // Get default platforms from connected accounts
     const defaultPlatforms = connectedAccounts.map(a => a.platform);
 
-    const result = addToQueue(files, defaultPlatforms);
+    const result = await addToQueue(files, defaultPlatforms);
     if (!result.success) {
       toast({
         title: "Erro ao adicionar vídeos",
@@ -47,14 +47,14 @@ export default function BulkUpload() {
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files || []);
     if (files.length === 0) return;
 
     const defaultPlatforms = connectedAccounts.map(a => a.platform);
 
-    const result = addToQueue(files, defaultPlatforms);
+    const result = await addToQueue(files, defaultPlatforms);
     if (!result.success) {
       toast({
         title: "Erro ao adicionar vídeos",
