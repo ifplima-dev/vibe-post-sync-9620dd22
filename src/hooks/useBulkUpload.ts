@@ -29,6 +29,14 @@ export interface BulkUploadItem {
   thumbnailUrl?: string;
 }
 
+// Extract default title from filename (removes extension and replaces underscores)
+const getDefaultTitle = (fileName: string): string => {
+  return fileName
+    .replace(/\.[^/.]+$/, "") // Remove extension
+    .replace(/_/g, " ")       // Replace underscores with spaces
+    .trim();
+};
+
 // Generate video thumbnail using Canvas API
 const generateVideoThumbnail = (file: File): Promise<string | undefined> => {
   return new Promise((resolve) => {
@@ -184,7 +192,7 @@ export function useBulkUpload() {
         const item: BulkUploadItem = {
           id: `${Date.now()}-${index}`,
           file,
-          title: "",
+          title: getDefaultTitle(file.name),
           description: "",
           status: "pending" as const,
           progress: 0,

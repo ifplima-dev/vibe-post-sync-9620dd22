@@ -162,11 +162,12 @@ export default function BulkUpload() {
   const scheduledCount = queue.filter(item => item.scheduleMode === "scheduled").length;
 
   // Check if all items are configured
-  const allConfigured = queue.every(item => 
+  const configuredCount = queue.filter(item => 
     item.title?.trim() && 
     item.platforms.length > 0 && 
     (item.scheduleMode === "immediate" || item.individualScheduledDate)
-  );
+  ).length;
+  const allConfigured = configuredCount === queue.length;
 
   return (
     <AppLayout>
@@ -309,7 +310,7 @@ export default function BulkUpload() {
 
             {!allConfigured && !isProcessing && (
               <p className="text-xs text-center text-muted-foreground">
-                Configure todos os vídeos antes de confirmar (título, plataforma e data)
+                {configuredCount}/{queue.length} vídeos configurados • Configure título, plataforma e data
               </p>
             )}
           </div>

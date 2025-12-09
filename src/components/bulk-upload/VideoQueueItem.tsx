@@ -84,6 +84,11 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled, conn
   const isLoading = ["uploading", "scheduling", "publishing"].includes(item.status);
   const isComplete = ["scheduled", "published"].includes(item.status);
   const canEdit = !isLoading && !isComplete && item.status !== "failed";
+  
+  // Check if item is missing required configuration
+  const isIncomplete = !item.title?.trim() || 
+    item.platforms.length === 0 || 
+    (item.scheduleMode === "scheduled" && !item.individualScheduledDate);
 
   // Format file size
   const formatSize = (bytes: number) => {
@@ -202,6 +207,12 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled, conn
           
           {/* Badges row */}
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            {isIncomplete && canEdit && (
+              <Badge variant="destructive" className="text-xs">
+                <AlertCircle className="w-3 h-3 mr-1" />
+                Incompleto
+              </Badge>
+            )}
             {platformCount > 0 && (
               <Badge variant="secondary" className="text-xs">
                 {platformCount} plataforma{platformCount > 1 ? "s" : ""}
