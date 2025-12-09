@@ -19,35 +19,37 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+type PlatformType = "meta" | "tiktok" | "youtube";
+
 const platformInfo: Record<string, { 
   icon: React.ComponentType<{ className?: string }>; 
   color: string; 
   name: string;
-  isMeta: boolean;
+  type: PlatformType;
 }> = {
   instagram: { 
     icon: InstagramIcon, 
     color: "from-purple-500 to-pink-500", 
     name: "Instagram",
-    isMeta: true,
+    type: "meta",
   },
   facebook: { 
     icon: FacebookIcon, 
     color: "from-blue-500 to-blue-600", 
     name: "Facebook",
-    isMeta: true,
+    type: "meta",
   },
   tiktok: { 
     icon: TikTokIcon, 
     color: "from-black to-gray-800", 
     name: "TikTok",
-    isMeta: false,
+    type: "tiktok",
   },
   youtube: { 
     icon: YouTubeIcon, 
     color: "from-red-500 to-red-600", 
     name: "YouTube",
-    isMeta: false,
+    type: "youtube",
   },
 };
 
@@ -91,6 +93,37 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
       toast({
         title: "Erro ao conectar",
         description: err.message || "Não foi possível iniciar a conexão",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  };
+
+  const handleTikTokConnect = async () => {
+    setIsLoading(true);
+    try {
+      const redirectUri = `${window.location.origin}/auth/callback`;
+
+      const { data, error } = await supabase.functions.invoke("tiktok-auth-url", {
+        body: { redirectUri },
+      });
+
+      if (error) throw error;
+
+      if (data.authUrl) {
+        // Store state in sessionStorage for validation on callback
+        if (data.state) {
+          sessionStorage.setItem("tiktok_oauth_state", data.state);
+        }
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error("URL de autenticação não retornada");
+      }
+    } catch (err: any) {
+      console.error("Error getting TikTok auth URL:", err);
+      toast({
+        title: "Erro ao conectar",
+        description: err.message || "Não foi possível iniciar a conexão com TikTok",
         variant: "destructive",
       });
       setIsLoading(false);
@@ -180,7 +213,7 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
           </DialogDescription>
         </DialogHeader>
 
-        {info.isMeta ? (
+        {info.type === "meta" ? (
           showManualForm ? (
             <div className="py-4 space-y-4">
               <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
@@ -263,6 +296,32 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
               )}
             </div>
           )
+        ) : info.type === "tiktok" ? (
+          <div className="py-4 space-y-4">
+            <div className="p-4 rounded-xl bg-secondary/50 border border-border">
+              <p className="text-sm text-muted-foreground mb-3">
+                Ao conectar, você autoriza o app a:
+              </p>
+              <ul className="text-sm space-y-2">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  Acessar informações básicas do perfil
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  Publicar vídeos em sua conta
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <p className="text-xs text-amber-200">
+                <strong>Nota:</strong> A publicação de vídeos no TikTok requer aprovação 
+                do scope video.upload pelo TikTok. Conectar a conta funcionará, mas a 
+                publicação pode precisar de aprovação adicional.
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="py-6">
             <div className="p-4 rounded-xl bg-secondary/50 border border-border">
@@ -283,7 +342,7 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
         )}
 
         <div className="flex flex-col gap-2">
-          {info.isMeta ? (
+          {info.type === "meta" ? (
             showManualForm ? (
               <>
                 <Button
@@ -346,6 +405,32 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
                 </Button>
               </>
             )
+          ) : info.type === "tiktok" ? (
+            <>
+              <Button
+                variant="gradient"
+                className="w-full"
+                onClick={handleTikTokConnect}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Conectando...
+                  </>
+                ) : (
+                  "Conectar com TikTok"
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => onOpenChange(false)}
+                disabled={isLoading}
+              >
+                Cancelar
+              </Button>
+            </>
           ) : (
             <Button
               variant="outline"
