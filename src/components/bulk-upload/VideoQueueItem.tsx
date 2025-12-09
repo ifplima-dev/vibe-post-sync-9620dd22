@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, CheckCircle, Loader2, AlertCircle, Clock, Upload, Calendar, Pencil, ChevronDown, ChevronUp, Play } from "lucide-react";
+import { X, CheckCircle, Loader2, AlertCircle, Clock, Upload, Calendar, Pencil, ChevronDown, ChevronUp, Play, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -172,9 +172,23 @@ export function VideoQueueItem({ item, index, onRemove, onUpdate, disabled, conn
     >
       {/* Main row */}
       <div className="flex items-center gap-3 p-3">
-        {/* Index */}
-        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium shrink-0">
-          {index + 1}
+        {/* Thumbnail */}
+        <div className="w-16 h-12 rounded-md overflow-hidden bg-muted shrink-0 relative">
+          {item.thumbnailUrl ? (
+            <img 
+              src={item.thumbnailUrl} 
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Video className="w-5 h-5 text-muted-foreground" />
+            </div>
+          )}
+          {/* Index badge */}
+          <div className="absolute bottom-0.5 left-0.5 w-5 h-5 rounded bg-background/80 flex items-center justify-center text-[10px] font-medium">
+            {index + 1}
+          </div>
         </div>
 
         {/* Video info */}
