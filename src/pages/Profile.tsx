@@ -164,41 +164,62 @@ export default function Profile() {
             <div className="flex justify-center py-4">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
-          ) : connectedAccounts.length > 0 ? (
+          ) : (
             <div className="space-y-2">
-              {connectedAccounts.map((account) => {
-                const Icon = platformIcons[account.platform];
+              {(["instagram", "facebook", "tiktok", "youtube"] as const).map((platform) => {
+                const Icon = platformIcons[platform];
+                const connectedAccount = accounts?.find(
+                  (a) => a.platform === platform && a.is_connected
+                );
+                const isComingSoon = platform === "tiktok" || platform === "youtube";
+                const platformNames: Record<string, string> = {
+                  instagram: "Instagram",
+                  facebook: "Facebook",
+                  tiktok: "TikTok",
+                  youtube: "YouTube",
+                };
+
                 return (
                   <div
-                    key={account.id}
+                    key={platform}
                     className="card-elevated p-3 flex items-center gap-3"
                   >
                     <Icon className="w-5 h-5 text-foreground" />
                     <div className="flex-1">
                       <p className="text-sm font-medium text-foreground">
-                        {account.platform_username || `@${username}`}
+                        {connectedAccount?.platform_username || platformNames[platform]}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Conectado
+                        {connectedAccount 
+                          ? "Conectado" 
+                          : isComingSoon 
+                            ? "Em breve" 
+                            : "Não conectado"}
                       </p>
                     </div>
                     <Button
-                      variant="ghost"
+                      variant={connectedAccount ? "ghost" : "outline"}
                       size="sm"
-                      className="text-muted-foreground hover:text-foreground"
-                      onClick={() => handleReconnect(account.platform)}
+                      className={connectedAccount 
+                        ? "text-muted-foreground hover:text-foreground" 
+                        : "text-primary border-primary/30 hover:bg-primary/10"}
+                      onClick={() => handleReconnect(platform)}
                     >
-                      <RefreshCw className="w-4 h-4 mr-1" />
-                      Reconectar
+                      {connectedAccount ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          Reconectar
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="w-4 h-4 mr-1" />
+                          Conectar
+                        </>
+                      )}
                     </Button>
                   </div>
                 );
               })}
-            </div>
-          ) : (
-            <div className="card-elevated p-4 text-center text-muted-foreground">
-              <p>Nenhuma conta conectada</p>
-              <p className="text-sm mt-1">Conecte suas redes sociais para publicar</p>
             </div>
           )}
         </section>
