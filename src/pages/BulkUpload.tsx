@@ -139,12 +139,14 @@ export default function BulkUpload() {
   const handleConfirm = async () => {
     if (!validateQueue()) return;
 
-    await processQueue();
+    const result = await processQueue();
 
-    toast({
-      title: "Processamento concluído!",
-      description: `${progress.completed} vídeos processados com sucesso.`,
-    });
+    if (result) {
+      toast({
+        title: "Processamento concluído!",
+        description: `${result.completed} vídeos processados com sucesso.`,
+      });
+    }
   };
 
   const handleRetry = async () => {

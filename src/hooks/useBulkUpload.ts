@@ -433,6 +433,8 @@ export function useBulkUpload() {
 
     setIsProcessing(false);
     setProgress(p => ({ ...p, currentFile: undefined }));
+
+    return { completed: completedCount, failed: failedCount };
   };
 
   const retryFailed = async () => {
