@@ -15,7 +15,7 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const code = searchParams.get("code");
-    const platform = searchParams.get("state"); // We pass platform in state param
+    const state = searchParams.get("state"); // We pass platform in state param
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
 
@@ -31,12 +31,17 @@ export default function AuthCallback() {
       return;
     }
 
-    if (!code || !platform || !user) {
+    if (!code || !state || !user) {
       setStatus("error");
       setMessage("Parâmetros inválidos");
       setTimeout(() => navigate("/profile"), 3000);
       return;
     }
+
+    // Detect platform from state
+    // TikTok state format: "tiktok_uuid"
+    // Meta state format: "instagram" or "facebook"
+    const platform = state.startsWith("tiktok_") ? "tiktok" : state;
 
     handleOAuthCallback(code, platform);
   }, [searchParams, user]);
@@ -45,7 +50,10 @@ export default function AuthCallback() {
     try {
       const redirectUri = `${window.location.origin}/auth/callback`;
 
-      const { data, error } = await supabase.functions.invoke("meta-oauth", {
+      // Use different edge function based on platform
+      const functionName = platform === "tiktok" ? "tiktok-oauth" : "meta-oauth";
+
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
           code,
           redirectUri,

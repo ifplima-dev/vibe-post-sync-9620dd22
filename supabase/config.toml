@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.save-manual-token]
 verify_jwt = false
+
+[functions.tiktok-auth-url]
+verify_jwt = false
+
+[functions.tiktok-oauth]
+verify_jwt = false
