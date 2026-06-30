@@ -130,6 +130,36 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
     }
   };
 
+  const handleYouTubeConnect = async () => {
+    setIsLoading(true);
+    try {
+      const redirectUri = `${window.location.origin}/auth/callback`;
+
+      const { data, error } = await supabase.functions.invoke("youtube-auth-url", {
+        body: { redirectUri },
+      });
+
+      if (error) throw error;
+
+      if (data.authUrl) {
+        if (data.state) {
+          sessionStorage.setItem("youtube_oauth_state", data.state);
+        }
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error("URL de autenticação não retornada");
+      }
+    } catch (err: any) {
+      console.error("Error getting YouTube auth URL:", err);
+      toast({
+        title: "Erro ao conectar",
+        description: err.message || "Não foi possível iniciar a conexão com YouTube",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  };
+
   const handleManualTokenSubmit = async () => {
     if (!accessToken.trim()) {
       toast({
