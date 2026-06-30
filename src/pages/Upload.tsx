@@ -446,16 +446,37 @@ export default function Upload() {
         const caption = title + (description ? "\n\n" + description : "");
         
         for (const platform of selectedPlatforms) {
-          const { data, error } = await supabase.functions.invoke("meta-publish", {
-            body: {
-              userId: user?.id,
-              platform,
-              videoUrl: primaryUrl,
-              mediaUrls: uploadedUrls.length > 1 ? uploadedUrls : undefined,
-              caption,
-              mediaType,
-            },
-          });
+          const functionName =
+            platform === "youtube"
+              ? "youtube-publish"
+              : platform === "tiktok"
+              ? "tiktok-publish"
+              : "meta-publish";
+
+          const body =
+            platform === "youtube"
+              ? {
+                  userId: user?.id,
+                  videoUrl: primaryUrl,
+                  title,
+                  description: description || "",
+                }
+              : platform === "tiktok"
+              ? {
+                  userId: user?.id,
+                  videoUrl: primaryUrl,
+                  caption,
+                }
+              : {
+                  userId: user?.id,
+                  platform,
+                  videoUrl: primaryUrl,
+                  mediaUrls: uploadedUrls.length > 1 ? uploadedUrls : undefined,
+                  caption,
+                  mediaType,
+                };
+
+          const { data, error } = await supabase.functions.invoke(functionName, { body });
 
           if (error) {
             console.error(`Error publishing to ${platform}:`, error);
