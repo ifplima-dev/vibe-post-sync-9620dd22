@@ -486,6 +486,32 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
                 Cancelar
               </Button>
             </>
+          ) : info.type === "youtube" ? (
+            <>
+              <Button
+                variant="gradient"
+                className="w-full"
+                onClick={handleYouTubeConnect}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Conectando...
+                  </>
+                ) : (
+                  "Conectar com YouTube"
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => onOpenChange(false)}
+                disabled={isLoading}
+              >
+                Cancelar
+              </Button>
+            </>
           ) : (
             <Button
               variant="outline"
