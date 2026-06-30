@@ -262,7 +262,7 @@ export default function Profile() {
             </div>
           ) : videos && videos.length > 0 ? (
             viewMode === "grid" ? (
-              <div className="grid grid-cols-3 gap-1">
+              <div className="grid grid-cols-3 gap-[2px] max-w-[640px] mx-auto">
                 {videos.map((video) => (
                   <div
                     key={video.id}
