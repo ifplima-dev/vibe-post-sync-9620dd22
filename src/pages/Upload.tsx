@@ -849,31 +849,41 @@ export default function Upload() {
               {accounts?.map((account) => {
                 const Icon = platformIcons[account.platform];
                 const isSelected = selectedPlatforms.includes(account.platform);
-                const isDisabled = !account.is_connected || autoPostAll;
+                const isDisabled = !account.is_connected;
                 
+                const handleClick = () => {
+                  if (isDisabled) return;
+                  if (autoPostAll) {
+                    setAutoPostAll(false);
+                    localStorage.setItem('autoPostAll', 'false');
+                    setSelectedPlatforms([account.platform]);
+                  } else {
+                    handlePlatformToggle(account.platform);
+                  }
+                };
+
                 return (
                   <div
                     key={account.id}
-                    onClick={() => !isDisabled && handlePlatformToggle(account.platform)}
+                    onClick={handleClick}
                     role="button"
                     tabIndex={!isDisabled ? 0 : -1}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
-                        !isDisabled && handlePlatformToggle(account.platform);
+                        handleClick();
                       }
                     }}
                     className={cn(
                       "card-elevated p-4 flex items-center gap-3 transition-all duration-300",
                       isSelected && "border-primary glow",
                       !account.is_connected && "opacity-50 cursor-not-allowed",
-                      account.is_connected && !autoPostAll && "cursor-pointer",
-                      autoPostAll && account.is_connected && "opacity-80"
+                      account.is_connected && "cursor-pointer",
                     )}
                   >
                     <Checkbox
                       checked={isSelected}
                       disabled={isDisabled}
-                      onCheckedChange={() => !isDisabled && handlePlatformToggle(account.platform)}
+                      onCheckedChange={handleClick}
                     />
                     <Icon className="w-5 h-5" />
                     <span className="text-sm font-medium capitalize">{account.platform}</span>
