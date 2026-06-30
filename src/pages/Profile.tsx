@@ -261,30 +261,56 @@ export default function Profile() {
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
           ) : videos && videos.length > 0 ? (
-            <div
-              className={cn(
-                viewMode === "grid"
-                  ? "grid grid-cols-2 gap-3"
-                  : "space-y-4"
-              )}
-            >
-              {videos.map((video) => (
-                <VideoCard
-                  key={video.id}
-                  thumbnail={video.thumbnail_url || "/placeholder.svg"}
-                  title={video.title}
-                  views="-"
-                  likes="-"
-                  comments="-"
-                  platforms={[]}
-                  date={formatDistanceToNow(new Date(video.created_at), {
-                    addSuffix: true,
-                    locale: ptBR,
-                  })}
-                  className={viewMode === "grid" ? "!p-0 [&>div:last-child]:p-3" : ""}
-                />
-              ))}
-            </div>
+            viewMode === "grid" ? (
+              <div className="grid grid-cols-3 gap-1">
+                {videos.map((video) => (
+                  <div
+                    key={video.id}
+                    className="aspect-square relative bg-secondary overflow-hidden group cursor-pointer"
+                  >
+                    {video.thumbnail_url ? (
+                      <img
+                        src={video.thumbnail_url}
+                        alt={video.title}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : video.file_url ? (
+                      <video
+                        src={video.file_url}
+                        className="w-full h-full object-cover"
+                        preload="metadata"
+                        muted
+                        playsInline
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Video className="w-6 h-6 text-muted-foreground/40" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {videos.map((video) => (
+                  <VideoCard
+                    key={video.id}
+                    thumbnail={video.thumbnail_url || "/placeholder.svg"}
+                    title={video.title}
+                    views="-"
+                    likes="-"
+                    comments="-"
+                    platforms={[]}
+                    date={formatDistanceToNow(new Date(video.created_at), {
+                      addSuffix: true,
+                      locale: ptBR,
+                    })}
+                  />
+                ))}
+              </div>
+            )
           ) : (
             <div className="card-elevated p-8 text-center">
               <Video className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
