@@ -84,16 +84,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if token might be expired
-    if (account.token_expires_at) {
-      const expiresAt = new Date(account.token_expires_at);
-      if (expiresAt < new Date()) {
-        return new Response(
-          JSON.stringify({ error: "Token de acesso expirado. Reconecte sua conta." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    }
+    // Note: We don't pre-check token_expires_at here because it may be inaccurate
+    // for manually-saved tokens. Meta API will return error 190 if token is actually expired.
+
 
     const accessToken = account.access_token;
     const pageId = account.page_id;
