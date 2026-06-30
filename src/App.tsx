@@ -14,6 +14,7 @@ import Profile from "./pages/Profile";
 import Scheduled from "./pages/Scheduled";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import YouTubeTest from "./pages/YouTubeTest";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -81,6 +82,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/youtube-test"
+                element={
+                  <ProtectedRoute>
+                    <YouTubeTest />
                   </ProtectedRoute>
                 }
               />
