@@ -40,8 +40,11 @@ export default function AuthCallback() {
 
     // Detect platform from state
     // TikTok state format: "tiktok_uuid"
+    // YouTube state format: "youtube_uuid"
     // Meta state format: "instagram" or "facebook"
-    const platform = state.startsWith("tiktok_") ? "tiktok" : state;
+    let platform = state;
+    if (state.startsWith("tiktok_")) platform = "tiktok";
+    else if (state.startsWith("youtube_")) platform = "youtube";
 
     handleOAuthCallback(code, platform);
   }, [searchParams, user]);
@@ -51,7 +54,9 @@ export default function AuthCallback() {
       const redirectUri = `${window.location.origin}/auth/callback`;
 
       // Use different edge function based on platform
-      const functionName = platform === "tiktok" ? "tiktok-oauth" : "meta-oauth";
+      let functionName = "meta-oauth";
+      if (platform === "tiktok") functionName = "tiktok-oauth";
+      else if (platform === "youtube") functionName = "youtube-oauth";
 
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: {

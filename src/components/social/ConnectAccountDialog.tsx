@@ -130,6 +130,36 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
     }
   };
 
+  const handleYouTubeConnect = async () => {
+    setIsLoading(true);
+    try {
+      const redirectUri = `${window.location.origin}/auth/callback`;
+
+      const { data, error } = await supabase.functions.invoke("youtube-auth-url", {
+        body: { redirectUri },
+      });
+
+      if (error) throw error;
+
+      if (data.authUrl) {
+        if (data.state) {
+          sessionStorage.setItem("youtube_oauth_state", data.state);
+        }
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error("URL de autenticação não retornada");
+      }
+    } catch (err: any) {
+      console.error("Error getting YouTube auth URL:", err);
+      toast({
+        title: "Erro ao conectar",
+        description: err.message || "Não foi possível iniciar a conexão com YouTube",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  };
+
   const handleManualTokenSubmit = async () => {
     if (!accessToken.trim()) {
       toast({
@@ -322,6 +352,31 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
               </p>
             </div>
           </div>
+        ) : info.type === "youtube" ? (
+          <div className="py-4 space-y-4">
+            <div className="p-4 rounded-xl bg-secondary/50 border border-border">
+              <p className="text-sm text-muted-foreground mb-3">
+                Ao conectar, você autoriza o app a:
+              </p>
+              <ul className="text-sm space-y-2">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  Acessar informações básicas do canal
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  Fazer upload e publicar vídeos no canal
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <p className="text-xs text-amber-200">
+                <strong>Nota:</strong> Você precisa ter um canal do YouTube ativo
+                associado a esta conta Google.
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="py-6">
             <div className="p-4 rounded-xl bg-secondary/50 border border-border">
@@ -332,7 +387,7 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
                 <div>
                   <p className="font-medium text-foreground">Em desenvolvimento</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    A integração OAuth com {info.name} está sendo implementada. 
+                    A integração OAuth com {info.name} está sendo implementada.
                     Em breve você poderá conectar sua conta.
                   </p>
                 </div>
@@ -420,6 +475,32 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
                   </>
                 ) : (
                   "Conectar com TikTok"
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => onOpenChange(false)}
+                disabled={isLoading}
+              >
+                Cancelar
+              </Button>
+            </>
+          ) : info.type === "youtube" ? (
+            <>
+              <Button
+                variant="gradient"
+                className="w-full"
+                onClick={handleYouTubeConnect}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Conectando...
+                  </>
+                ) : (
+                  "Conectar com YouTube"
                 )}
               </Button>
               <Button

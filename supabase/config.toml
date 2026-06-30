@@ -26,3 +26,12 @@ verify_jwt = false
 
 [functions.tiktok-oauth]
 verify_jwt = false
+
+[functions.youtube-auth-url]
+verify_jwt = false
+
+[functions.youtube-oauth]
+verify_jwt = false
+
+[functions.youtube-publish]
+verify_jwt = false
