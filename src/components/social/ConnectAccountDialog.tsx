@@ -352,6 +352,31 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
               </p>
             </div>
           </div>
+        ) : info.type === "youtube" ? (
+          <div className="py-4 space-y-4">
+            <div className="p-4 rounded-xl bg-secondary/50 border border-border">
+              <p className="text-sm text-muted-foreground mb-3">
+                Ao conectar, você autoriza o app a:
+              </p>
+              <ul className="text-sm space-y-2">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  Acessar informações básicas do canal
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  Fazer upload e publicar vídeos no canal
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <p className="text-xs text-amber-200">
+                <strong>Nota:</strong> Você precisa ter um canal do YouTube ativo
+                associado a esta conta Google.
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="py-6">
             <div className="p-4 rounded-xl bg-secondary/50 border border-border">
@@ -362,7 +387,7 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
                 <div>
                   <p className="font-medium text-foreground">Em desenvolvimento</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    A integração OAuth com {info.name} está sendo implementada. 
+                    A integração OAuth com {info.name} está sendo implementada.
                     Em breve você poderá conectar sua conta.
                   </p>
                 </div>
