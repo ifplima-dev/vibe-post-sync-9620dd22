@@ -446,6 +446,16 @@ export default function Upload() {
         const caption = title + (description ? "\n\n" + description : "");
         
         for (const platform of selectedPlatforms) {
+          // YouTube/TikTok only support video uploads
+          if ((platform === "youtube" || platform === "tiktok") && mediaType === "image") {
+            console.warn(`Pulando ${platform}: não suporta imagens`);
+            toast({
+              title: `${platform} ignorado`,
+              description: `${platform} aceita apenas vídeos.`,
+            });
+            continue;
+          }
+
           const functionName =
             platform === "youtube"
               ? "youtube-publish"
