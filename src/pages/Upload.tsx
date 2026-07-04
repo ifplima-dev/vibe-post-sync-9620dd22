@@ -513,10 +513,12 @@ export default function Upload() {
         resetForm();
         navigate("/profile");
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Publish/schedule error:", error);
+      const msg = error?.message || error?.error_description || "Ocorreu um erro. Tente novamente.";
       toast({
-        title: "Erro ao publicar",
-        description: "Ocorreu um erro. Tente novamente.",
+        title: isScheduled ? "Erro ao agendar" : "Erro ao publicar",
+        description: msg,
         variant: "destructive",
       });
     } finally {
