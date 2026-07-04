@@ -62,21 +62,48 @@ export function useCreateVideo() {
   });
 }
 
+function extensionFromFile(file: File): string {
+  // Try filename first
+  const nameParts = (file.name || "").split(".");
+  let ext = nameParts.length > 1 ? nameParts.pop()!.toLowerCase() : "";
+  // Fallback to MIME type (mobile browsers sometimes send blob-like names)
+  if (!ext || ext.length > 5) {
+    const mime = file.type || "";
+    if (mime.includes("quicktime")) ext = "mov";
+    else if (mime.includes("mp4")) ext = "mp4";
+    else if (mime.includes("webm")) ext = "webm";
+    else if (mime.includes("png")) ext = "png";
+    else if (mime.includes("jpeg") || mime.includes("jpg")) ext = "jpg";
+    else if (mime.includes("gif")) ext = "gif";
+    else ext = mime.startsWith("video/") ? "mp4" : "bin";
+  }
+  // Sanitize
+  return ext.replace(/[^a-z0-9]/g, "") || "bin";
+}
+
 export function useUploadVideo() {
   const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (file: File) => {
-      if (!user?.id) throw new Error("Not authenticated");
+      if (!user?.id) throw new Error("Usuário não autenticado");
 
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
+      const ext = extensionFromFile(file);
+      const fileName = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const contentType = file.type || (ext === "mov" ? "video/quicktime" : "application/octet-stream");
 
       const { error: uploadError } = await supabase.storage
         .from("videos")
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          contentType,
+          upsert: false,
+          cacheControl: "3600",
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError);
+        throw new Error(`Falha no upload: ${uploadError.message}`);
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from("videos")
