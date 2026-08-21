@@ -46,6 +46,30 @@ function parseMetaError(error: { message?: string; code?: number; error_subcode?
   return message;
 }
 
+// Inspect which permissions the token actually carries (for diagnostics)
+async function getTokenScopes(token: string): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${API_VERSION}/debug_token?input_token=${token}&access_token=${token}`
+    );
+    const data = await res.json();
+    if (data?.error) {
+      console.error("debug_token error:", data.error);
+      return [];
+    }
+    console.log("Token info:", {
+      type: data?.data?.type,
+      app_id: data?.data?.app_id,
+      profile_id: data?.data?.profile_id,
+      scopes: data?.data?.scopes,
+    });
+    return (data?.data?.scopes as string[]) ?? [];
+  } catch (e) {
+    console.error("debug_token failed:", e);
+    return [];
+  }
+}
+
 // Resolve a Page access token from a (possibly) user access token
 async function getPageAccessToken(pageId: string, token: string): Promise<string | null> {
   try {
@@ -54,12 +78,15 @@ async function getPageAccessToken(pageId: string, token: string): Promise<string
     );
     const data = await res.json();
     if (data?.access_token) return data.access_token as string;
+    if (data?.error) console.error("Page token lookup error:", data.error);
 
     // Fallback: search the user's pages list
     const listRes = await fetch(
-      `https://graph.facebook.com/${API_VERSION}/me/accounts?fields=id,access_token&limit=100&access_token=${token}`
+      `https://graph.facebook.com/${API_VERSION}/me/accounts?fields=id,name,access_token&limit=100&access_token=${token}`
     );
     const listData = await listRes.json();
+    if (listData?.error) console.error("me/accounts error:", listData.error);
+    console.log("Pages found:", (listData?.data ?? []).map((p: { id: string; name?: string }) => `${p.id}:${p.name}`));
     const match = listData?.data?.find((p: { id: string }) => p.id === pageId);
     return match?.access_token ?? null;
   } catch (e) {
@@ -67,6 +94,7 @@ async function getPageAccessToken(pageId: string, token: string): Promise<string
     return null;
   }
 }
+
 
 
 Deno.serve(async (req) => {
