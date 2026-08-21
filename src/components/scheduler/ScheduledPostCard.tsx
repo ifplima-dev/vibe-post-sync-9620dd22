@@ -30,6 +30,7 @@ export interface ScheduledPost {
   createdAt: Date;
   mediaUrls?: string[];
   mediaType?: "video" | "image";
+  errorMessage?: string;
 }
 
 const platformIcons: Record<string, React.FC<{ className?: string }>> = {
@@ -177,6 +178,12 @@ export function ScheduledPostCard({
               </Badge>
             )}
           </div>
+
+          {post.status === "failed" && post.errorMessage && (
+            <p className="mt-2 text-xs text-destructive break-words">
+              {post.errorMessage}
+            </p>
+          )}
         </div>
       </div>
 

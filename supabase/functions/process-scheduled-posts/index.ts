@@ -68,36 +68,63 @@ Deno.serve(async (req) => {
         .eq("id", post.id);
 
       const platformResults = [];
-      let hasError = false;
+      const errors: string[] = [];
+      let successCount = 0;
 
       for (const platform of post.platforms) {
         try {
           console.log(`  → Publishing ${mediaType} to ${platform}...`);
-          const result = await publishToMeta(
-            supabase,
-            post.user_id,
-            platform,
-            post.video_file_url,
-            isCarousel ? post.media_urls : null,
-            post.title + (post.description ? "\n\n" + post.description : ""),
-            mediaType
-          );
+
+          let result: { postId: string };
+
+          if (platform === "instagram" || platform === "facebook") {
+            result = await publishToMeta(
+              supabase,
+              post.user_id,
+              platform,
+              post.video_file_url,
+              isCarousel ? post.media_urls : null,
+              post.title + (post.description ? "\n\n" + post.description : ""),
+              mediaType
+            );
+          } else if (platform === "youtube" || platform === "tiktok") {
+            if (mediaType !== "video") {
+              throw new Error(`${platform} aceita apenas vídeos`);
+            }
+            result = await publishViaFunction(
+              platform === "youtube" ? "youtube-publish" : "tiktok-publish",
+              {
+                userId: post.user_id,
+                videoUrl: post.video_file_url,
+                title: post.title,
+                description: post.description || "",
+              }
+            );
+          } else {
+            throw new Error(`Plataforma ${platform} não suportada`);
+          }
+
           platformResults.push({ platform, success: true, postId: result.postId });
+          successCount++;
           console.log(`  ✅ Published to ${platform}: ${result.postId}`);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Unknown error";
           console.error(`  ❌ Failed to publish to ${platform}:`, errorMessage);
           platformResults.push({ platform, success: false, error: errorMessage });
-          hasError = true;
+          errors.push(`${platform}: ${errorMessage}`);
         }
       }
 
-      // Update final status
-      const finalStatus = hasError ? "failed" : "published";
+      // Published if at least one platform succeeded; otherwise failed
+      const finalStatus = successCount > 0 ? "published" : "failed";
       await supabase
         .from("scheduled_posts")
-        .update({ status: finalStatus })
+        .update({
+          status: finalStatus,
+          error_message: errors.length > 0 ? errors.join(" | ").slice(0, 2000) : null,
+        })
         .eq("id", post.id);
+
 
       console.log(`📌 Post ${post.id} final status: ${finalStatus}`);
       results.push({ postId: post.id, status: finalStatus, platforms: platformResults });
@@ -193,7 +220,7 @@ async function publishVideoToInstagram(
   console.log("    Publishing video to Instagram...");
   
   // Step 1: Create media container for video (Reel)
-  const containerUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+  const containerUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}/media`;
   const containerParams = new URLSearchParams({
     video_url: videoUrl,
     caption: caption || "",
@@ -222,7 +249,7 @@ async function publishVideoToInstagram(
   while (status === "IN_PROGRESS" && attempts < maxAttempts) {
     await new Promise(resolve => setTimeout(resolve, 10000));
     
-    const statusUrl = `https://graph.facebook.com/v19.0/${containerId}?fields=status_code&access_token=${accessToken}`;
+    const statusUrl = `https://graph.facebook.com/v21.0/${containerId}?fields=status_code&access_token=${accessToken}`;
     const statusResponse = await fetch(statusUrl);
     const statusData = await statusResponse.json();
     
@@ -236,7 +263,7 @@ async function publishVideoToInstagram(
   }
 
   // Step 3: Publish the container
-  const publishUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media_publish`;
+  const publishUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}/media_publish`;
   const publishParams = new URLSearchParams({
     creation_id: containerId,
     access_token: accessToken,
@@ -263,7 +290,7 @@ async function publishVideoToFacebook(
 ) {
   console.log("    Publishing video to Facebook...");
   
-  const uploadUrl = `https://graph.facebook.com/v19.0/${pageId}/videos`;
+  const uploadUrl = `https://graph.facebook.com/v21.0/${pageId}/videos`;
   const uploadParams = new URLSearchParams({
     file_url: videoUrl,
     description: caption || "",
@@ -294,7 +321,7 @@ async function publishImageToInstagram(
   console.log("    Publishing image to Instagram...");
   
   // Step 1: Create media container for image
-  const containerUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+  const containerUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}/media`;
   const containerParams = new URLSearchParams({
     image_url: imageUrl,
     caption: caption || "",
@@ -315,7 +342,7 @@ async function publishImageToInstagram(
   console.log("    Image container created:", containerId);
 
   // Step 2: Publish the container (images don't need async processing)
-  const publishUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media_publish`;
+  const publishUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}/media_publish`;
   const publishParams = new URLSearchParams({
     creation_id: containerId,
     access_token: accessToken,
@@ -342,7 +369,7 @@ async function publishImageToFacebook(
 ) {
   console.log("    Publishing image to Facebook...");
   
-  const uploadUrl = `https://graph.facebook.com/v19.0/${pageId}/photos`;
+  const uploadUrl = `https://graph.facebook.com/v21.0/${pageId}/photos`;
   const uploadParams = new URLSearchParams({
     url: imageUrl,
     caption: caption || "",
@@ -379,7 +406,7 @@ async function publishCarouselToInstagram(
     const imageUrl = imageUrls[i];
     console.log(`    Creating carousel item ${i + 1}/${imageUrls.length}...`);
     
-    const containerUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+    const containerUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}/media`;
     const containerParams = new URLSearchParams({
       image_url: imageUrl,
       is_carousel_item: "true",
@@ -403,7 +430,7 @@ async function publishCarouselToInstagram(
 
   // Step 2: Create the carousel container with all children
   console.log("    Creating carousel container...");
-  const carouselUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media`;
+  const carouselUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}/media`;
   const carouselParams = new URLSearchParams({
     media_type: "CAROUSEL",
     children: childContainerIds.join(","),
@@ -426,7 +453,7 @@ async function publishCarouselToInstagram(
   console.log("    Carousel container created:", carouselId);
 
   // Step 3: Publish the carousel
-  const publishUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media_publish`;
+  const publishUrl = `https://graph.facebook.com/v21.0/${instagramAccountId}/media_publish`;
   const publishParams = new URLSearchParams({
     creation_id: carouselId,
     access_token: accessToken,
@@ -463,7 +490,7 @@ async function publishCarouselToFacebook(
     const imageUrl = imageUrls[i];
     console.log(`    Uploading photo ${i + 1}/${imageUrls.length}...`);
     
-    const uploadUrl = `https://graph.facebook.com/v19.0/${pageId}/photos`;
+    const uploadUrl = `https://graph.facebook.com/v21.0/${pageId}/photos`;
     const uploadParams = new URLSearchParams({
       url: imageUrl,
       published: "false",
@@ -487,7 +514,7 @@ async function publishCarouselToFacebook(
 
   // Step 2: Create a feed post with all photos attached
   console.log("    Creating Facebook multi-photo post...");
-  const feedUrl = `https://graph.facebook.com/v19.0/${pageId}/feed`;
+  const feedUrl = `https://graph.facebook.com/v21.0/${pageId}/feed`;
   
   // Build the attached_media parameter
   const attachedMedia = photoIds.map(id => ({ media_fbid: id }));
@@ -512,4 +539,31 @@ async function publishCarouselToFacebook(
 
   console.log("    Facebook carousel publish success:", feedData.id);
   return { success: true, postId: feedData.id, platform: "facebook" };
+}
+
+// ============= OTHER PLATFORMS (via edge functions) =============
+
+async function publishViaFunction(
+  functionName: string,
+  body: Record<string, unknown>
+): Promise<{ postId: string }> {
+  const resp = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const text = await resp.text();
+  let data: any = {};
+  try { data = JSON.parse(text); } catch { /* non-json */ }
+
+  if (!resp.ok || data.error) {
+    throw new Error(data.error || `Erro ${resp.status}: ${text.slice(0, 200)}`);
+  }
+
+  return { postId: data.videoId || data.postId || data.id || "unknown" };
 }
