@@ -42,6 +42,10 @@ function parseMetaError(error: { message?: string; code?: number; error_subcode?
   if (code === 4) {
     return "Limite de requisições excedido. Aguarde alguns minutos e tente novamente.";
   }
+
+  return message;
+}
+
 // Resolve a Page access token from a (possibly) user access token
 async function getPageAccessToken(pageId: string, token: string): Promise<string | null> {
   try {
@@ -64,9 +68,6 @@ async function getPageAccessToken(pageId: string, token: string): Promise<string
   }
 }
 
-
-  return message;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
