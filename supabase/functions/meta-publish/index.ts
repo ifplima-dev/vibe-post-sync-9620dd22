@@ -108,7 +108,20 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Facebook/Instagram publishing requires a PAGE access token, not a user token.
+    // If the saved token is a user token, exchange it for the Page token.
+    if (pageId) {
+      const pageToken = await getPageAccessToken(pageId, accessToken);
+      if (pageToken) {
+        accessToken = pageToken;
+        console.log("Using Page access token for publishing");
+      } else {
+        console.log("Could not resolve Page access token; using saved token");
+      }
+    }
+
     let result;
+
 
     // Check if it's a carousel (multiple images)
     const isCarousel = mediaUrls && Array.isArray(mediaUrls) && mediaUrls.length > 1 && mediaType === "image";
