@@ -20,8 +20,12 @@ function parseMetaError(error: { message?: string; code?: number; error_subcode?
     if (subcode === 33) {
       return "ID da conta Instagram inválido ou sem permissões. Reconecte sua conta.";
     }
+    if (/permission to publish/i.test(message)) {
+      return "Sem permissão para publicar vídeo nessa Página. Gere um novo token com as permissões pages_manage_posts, pages_read_engagement, pages_show_list (e instagram_content_publish) e reconecte a conta em Perfil → Reconectar.";
+    }
     return `Parâmetros inválidos: ${message}`;
   }
+
   
   if (code === 190) {
     return "Token de acesso expirado ou inválido. Reconecte sua conta.";
