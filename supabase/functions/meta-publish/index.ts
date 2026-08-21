@@ -165,7 +165,9 @@ Deno.serve(async (req) => {
 
     // Facebook/Instagram publishing requires a PAGE access token, not a user token.
     // If the saved token is a user token, exchange it for the Page token.
+    const scopes = await getTokenScopes(accessToken);
     if (pageId) {
+
       const pageToken = await getPageAccessToken(pageId, accessToken);
       if (pageToken) {
         accessToken = pageToken;
