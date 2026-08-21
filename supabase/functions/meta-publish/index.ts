@@ -20,8 +20,12 @@ function parseMetaError(error: { message?: string; code?: number; error_subcode?
     if (subcode === 33) {
       return "ID da conta Instagram inválido ou sem permissões. Reconecte sua conta.";
     }
+    if (/permission to publish/i.test(message)) {
+      return "Sem permissão para publicar vídeo nessa Página. Gere um novo token com as permissões pages_manage_posts, pages_read_engagement, pages_show_list (e instagram_content_publish) e reconecte a conta em Perfil → Reconectar.";
+    }
     return `Parâmetros inválidos: ${message}`;
   }
+
   
   if (code === 190) {
     return "Token de acesso expirado ou inválido. Reconecte sua conta.";
@@ -41,6 +45,29 @@ function parseMetaError(error: { message?: string; code?: number; error_subcode?
 
   return message;
 }
+
+// Resolve a Page access token from a (possibly) user access token
+async function getPageAccessToken(pageId: string, token: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${API_VERSION}/${pageId}?fields=access_token&access_token=${token}`
+    );
+    const data = await res.json();
+    if (data?.access_token) return data.access_token as string;
+
+    // Fallback: search the user's pages list
+    const listRes = await fetch(
+      `https://graph.facebook.com/${API_VERSION}/me/accounts?fields=id,access_token&limit=100&access_token=${token}`
+    );
+    const listData = await listRes.json();
+    const match = listData?.data?.find((p: { id: string }) => p.id === pageId);
+    return match?.access_token ?? null;
+  } catch (e) {
+    console.error("Failed to resolve page access token:", e);
+    return null;
+  }
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -88,9 +115,10 @@ Deno.serve(async (req) => {
     // for manually-saved tokens. Meta API will return error 190 if token is actually expired.
 
 
-    const accessToken = account.access_token;
+    let accessToken = account.access_token;
     const pageId = account.page_id;
     const instagramAccountId = account.instagram_account_id;
+
 
     // Validate required IDs based on platform
     if (platform === "instagram" && !instagramAccountId) {
@@ -107,7 +135,20 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Facebook/Instagram publishing requires a PAGE access token, not a user token.
+    // If the saved token is a user token, exchange it for the Page token.
+    if (pageId) {
+      const pageToken = await getPageAccessToken(pageId, accessToken);
+      if (pageToken) {
+        accessToken = pageToken;
+        console.log("Using Page access token for publishing");
+      } else {
+        console.log("Could not resolve Page access token; using saved token");
+      }
+    }
+
     let result;
+
 
     // Check if it's a carousel (multiple images)
     const isCarousel = mediaUrls && Array.isArray(mediaUrls) && mediaUrls.length > 1 && mediaType === "image";
