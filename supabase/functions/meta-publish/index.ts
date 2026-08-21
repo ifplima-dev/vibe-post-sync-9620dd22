@@ -320,31 +320,69 @@ async function publishToFacebook(
   videoUrl: string,
   caption: string
 ) {
-  console.log("Publishing video to Facebook...");
-  
-  // Upload video to Facebook page
-  const uploadUrl = `https://graph.facebook.com/${API_VERSION}/${pageId}/videos`;
-  const uploadParams = new URLSearchParams({
-    file_url: videoUrl,
-    description: caption || "",
-    access_token: accessToken,
-  });
+  console.log("Publishing video to Facebook via Reels API...");
 
-  console.log("Uploading video to Facebook...");
-  const uploadResponse = await fetch(uploadUrl, {
-    method: "POST",
-    body: uploadParams,
-  });
-  const uploadData = await uploadResponse.json();
+  // Step 1: Start an upload session
+  const startRes = await fetch(
+    `https://graph.facebook.com/${API_VERSION}/${pageId}/video_reels`,
+    {
+      method: "POST",
+      body: new URLSearchParams({
+        upload_phase: "start",
+        access_token: accessToken,
+      }),
+    }
+  );
+  const startData = await startRes.json();
 
-  if (uploadData.error) {
-    console.error("Error uploading to Facebook:", uploadData.error);
-    throw new Error(parseMetaError(uploadData.error));
+  if (startData.error) {
+    console.error("Error starting Facebook reel upload:", startData.error);
+    throw new Error(parseMetaError(startData.error));
   }
 
-  console.log("Facebook video publish success:", uploadData.id);
-  return { success: true, postId: uploadData.id, platform: "facebook" };
+  const videoId = startData.video_id;
+  const uploadUrl = startData.upload_url;
+  console.log("Reel upload session started:", videoId);
+
+  // Step 2: Send the hosted file to the upload URL
+  const uploadRes = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `OAuth ${accessToken}`,
+      file_url: videoUrl,
+    },
+  });
+  const uploadData = await uploadRes.json().catch(() => ({}));
+
+  if (uploadData?.error || uploadData?.success === false) {
+    console.error("Error uploading reel file:", uploadData);
+    throw new Error(parseMetaError(uploadData?.error ?? { message: "Falha ao enviar o vídeo para o Facebook" }));
+  }
+  console.log("Reel file uploaded");
+
+  // Step 3: Finish and publish
+  const finishRes = await fetch(
+    `https://graph.facebook.com/${API_VERSION}/${pageId}/video_reels?` +
+      new URLSearchParams({
+        upload_phase: "finish",
+        video_id: videoId,
+        video_state: "PUBLISHED",
+        description: caption || "",
+        access_token: accessToken,
+      }),
+    { method: "POST" }
+  );
+  const finishData = await finishRes.json();
+
+  if (finishData.error) {
+    console.error("Error publishing Facebook reel:", finishData.error);
+    throw new Error(parseMetaError(finishData.error));
+  }
+
+  console.log("Facebook video publish success:", videoId);
+  return { success: true, postId: videoId, platform: "facebook" };
 }
+
 
 // ============= IMAGE PUBLISHING =============
 
