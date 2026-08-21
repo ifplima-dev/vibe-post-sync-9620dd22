@@ -1,73 +1,40 @@
-# Welcome to your Lovable project
+# SocialMidia
 
-## Project info
+Quero criar um aplicativo pessoal para postar meus vídeos nas redes sociais.  
+O app deve ter as seguintes funcionalidades:
 
-**URL**: https://lovable.dev/projects/73b58684-8cff-4ac7-a08d-8b96d3358bec
+- Interface simples e moderna, com design minimalista e intuitivo.  
+- Upload rápido de vídeos diretamente do celular.  
+- Opção de cortar, ajustar e adicionar título/descrição antes de postar.  
+- Integração com principais redes sociais (Instagram, TikTok, YouTube e Facebook).  
+- Painel para acompanhar engajamento (curtidas, comentários, visualizações).  
+- Notificações para lembrar de postar novos vídeos e acompanhar interações.  
+- Área de perfil personalizada, onde eu possa organizar meus vídeos postados.  
 
-## How can I edit this code?
+Estilo visual: cores vibrantes, ícones modernos e navegação fluida.  
+Objetivo: facilitar a publicação e gestão dos meus vídeos em várias redes sociais a partir de um único app.
 
-There are several ways of editing your application.
+Conceito MVP
 
-**Use Lovable**
+This project was built with [Lovable](https://lovable.dev).
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/73b58684-8cff-4ac7-a08d-8b96d3358bec) and start prompting.
+**Live app**: https://vibe-post-sync.lovable.app
 
-Changes made via Lovable will be committed automatically to this repo.
+## Build with Lovable
 
-**Use your preferred IDE**
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/73b58684-8cff-4ac7-a08d-8b96d3358bec).
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **Ship faster**: describe what you want to build and Lovable handles the code.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Development
 
-Follow these steps:
+Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
+git clone <this-repository-url>
+cd <repository-name>
 npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/73b58684-8cff-4ac7-a08d-8b96d3358bec) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
