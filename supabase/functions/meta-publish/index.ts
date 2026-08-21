@@ -88,9 +88,10 @@ Deno.serve(async (req) => {
     // for manually-saved tokens. Meta API will return error 190 if token is actually expired.
 
 
-    const accessToken = account.access_token;
+    let accessToken = account.access_token;
     const pageId = account.page_id;
     const instagramAccountId = account.instagram_account_id;
+
 
     // Validate required IDs based on platform
     if (platform === "instagram" && !instagramAccountId) {
