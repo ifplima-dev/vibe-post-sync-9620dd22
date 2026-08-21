@@ -177,15 +177,19 @@ Deno.serve(async (req) => {
     }
 
 
-    if (platform === "facebook" && scopes.length > 0 && !scopes.includes("pages_manage_posts")) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "O token conectado não possui a permissão 'pages_manage_posts' (necessária para publicar na Página). Gere um novo token no Graph API Explorer marcando pages_manage_posts, pages_read_engagement e pages_show_list, e reconecte em Perfil → Facebook → Reconectar.",
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (platform === "facebook" && scopes.length > 0) {
+      const required = ["pages_show_list", "pages_manage_posts", "pages_read_engagement"];
+      const missing = required.filter((s) => !scopes.includes(s));
+      if (missing.length > 0) {
+        return new Response(
+          JSON.stringify({
+            error: `O token do Facebook está sem as permissões: ${missing.join(", ")}. Gere um novo token no Graph API Explorer marcando pages_show_list, pages_read_engagement, pages_manage_posts (e instagram_content_publish) e reconecte em Perfil → Facebook → Reconectar.`,
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
+
 
 
     let result;
