@@ -16,7 +16,7 @@ export interface ScheduledPost {
   created_at: string;
   media_urls: string[] | null;
   media_type: string | null;
-  error_message: string | null;
+  error_message?: string | null;
 }
 
 export function useScheduledPosts() {
