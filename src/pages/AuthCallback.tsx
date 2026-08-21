@@ -96,7 +96,7 @@ export default function AuthCallback() {
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [platform, setPlatform] = useState<string>("");
 
-  const origin = window.location.origin;
+  const origin = "https://vibe-post-sync.lovable.app";
   const redirectUri = `${origin}/auth/callback`;
 
   const copy = (text: string, label: string) => {

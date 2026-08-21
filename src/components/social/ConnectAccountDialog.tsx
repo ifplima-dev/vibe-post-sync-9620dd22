@@ -133,7 +133,7 @@ export function ConnectAccountDialog({ open, onOpenChange, platform }: ConnectAc
   const handleYouTubeConnect = async () => {
     setIsLoading(true);
     try {
-      const redirectUri = `${window.location.origin}/auth/callback`;
+      const redirectUri = "https://vibe-post-sync.lovable.app/auth/callback";
 
       const { data, error } = await supabase.functions.invoke("youtube-auth-url", {
         body: { redirectUri },

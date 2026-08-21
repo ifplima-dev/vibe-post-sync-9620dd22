@@ -5,17 +5,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const YOUTUBE_REDIRECT_URI = "https://vibe-post-sync.lovable.app/auth/callback";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { redirectUri } = await req.json();
+    await req.json();
 
     const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
     if (!clientId) throw new Error("GOOGLE_CLIENT_ID não configurado");
-    if (!redirectUri) throw new Error("redirectUri é obrigatório");
 
     // YouTube scopes - upload videos and read basic channel info
     const scopes = [
@@ -28,7 +29,7 @@ serve(async (req) => {
 
     const params = new URLSearchParams({
       client_id: clientId,
-      redirect_uri: redirectUri,
+      redirect_uri: YOUTUBE_REDIRECT_URI,
       response_type: "code",
       scope: scopes,
       access_type: "offline",
@@ -38,7 +39,7 @@ serve(async (req) => {
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
-    console.log("Generated YouTube auth URL for redirect:", redirectUri);
+    console.log("Generated YouTube auth URL for redirect:", YOUTUBE_REDIRECT_URI);
 
     return new Response(
       JSON.stringify({ authUrl, state }),

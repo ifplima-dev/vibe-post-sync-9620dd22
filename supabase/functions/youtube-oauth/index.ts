@@ -6,17 +6,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const YOUTUBE_REDIRECT_URI = "https://vibe-post-sync.lovable.app/auth/callback";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { code, redirectUri, userId } = await req.json();
+    const { code, userId } = await req.json();
     console.log("YouTube OAuth callback for user:", userId);
 
-    if (!code || !redirectUri || !userId) {
-      throw new Error("Parâmetros obrigatórios: code, redirectUri, userId");
+    if (!code || !userId) {
+      throw new Error("Parâmetros obrigatórios: code, userId");
     }
 
     const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
@@ -33,7 +35,7 @@ serve(async (req) => {
         code,
         client_id: clientId,
         client_secret: clientSecret,
-        redirect_uri: redirectUri,
+        redirect_uri: YOUTUBE_REDIRECT_URI,
         grant_type: "authorization_code",
       }),
     });
