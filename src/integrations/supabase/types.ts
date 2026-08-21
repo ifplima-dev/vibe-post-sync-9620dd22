@@ -144,6 +144,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          error_message: string | null
           id: string
           media_type: string | null
           media_urls: string[] | null
@@ -159,6 +160,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          error_message?: string | null
           id?: string
           media_type?: string | null
           media_urls?: string[] | null
@@ -174,6 +176,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          error_message?: string | null
           id?: string
           media_type?: string | null
           media_urls?: string[] | null
