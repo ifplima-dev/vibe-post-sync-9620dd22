@@ -167,7 +167,6 @@ Deno.serve(async (req) => {
     // If the saved token is a user token, exchange it for the Page token.
     const scopes = await getTokenScopes(accessToken);
     if (pageId) {
-
       const pageToken = await getPageAccessToken(pageId, accessToken);
       if (pageToken) {
         accessToken = pageToken;
@@ -176,6 +175,17 @@ Deno.serve(async (req) => {
         console.log("Could not resolve Page access token; using saved token");
       }
     }
+
+    if (platform === "facebook" && scopes.length > 0 && !scopes.includes("pages_manage_posts")) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "O token conectado não possui a permissão 'pages_manage_posts' (necessária para publicar na Página). Gere um novo token no Graph API Explorer marcando pages_manage_posts, pages_read_engagement e pages_show_list, e reconecte em Perfil → Facebook → Reconectar.",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
 
     let result;
 
