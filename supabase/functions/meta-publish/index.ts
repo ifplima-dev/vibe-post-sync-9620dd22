@@ -43,7 +43,36 @@ function parseMetaError(error: { message?: string; code?: number; error_subcode?
     return "Limite de requisições excedido. Aguarde alguns minutos e tente novamente.";
   }
 
+  if (code === 200) {
+    return `Sem permissão para publicar nessa Página: ${message} Gere um novo token incluindo pages_show_list, pages_read_engagement e pages_manage_posts e reconecte em Perfil → Facebook → Reconectar.`;
+  }
+
+
   return message;
+}
+
+// Inspect which permissions the token actually carries (for diagnostics)
+async function getTokenScopes(token: string): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${API_VERSION}/debug_token?input_token=${token}&access_token=${token}`
+    );
+    const data = await res.json();
+    if (data?.error) {
+      console.error("debug_token error:", data.error);
+      return [];
+    }
+    console.log("Token info:", {
+      type: data?.data?.type,
+      app_id: data?.data?.app_id,
+      profile_id: data?.data?.profile_id,
+      scopes: data?.data?.scopes,
+    });
+    return (data?.data?.scopes as string[]) ?? [];
+  } catch (e) {
+    console.error("debug_token failed:", e);
+    return [];
+  }
 }
 
 // Resolve a Page access token from a (possibly) user access token
@@ -54,12 +83,15 @@ async function getPageAccessToken(pageId: string, token: string): Promise<string
     );
     const data = await res.json();
     if (data?.access_token) return data.access_token as string;
+    if (data?.error) console.error("Page token lookup error:", data.error);
 
     // Fallback: search the user's pages list
     const listRes = await fetch(
-      `https://graph.facebook.com/${API_VERSION}/me/accounts?fields=id,access_token&limit=100&access_token=${token}`
+      `https://graph.facebook.com/${API_VERSION}/me/accounts?fields=id,name,access_token&limit=100&access_token=${token}`
     );
     const listData = await listRes.json();
+    if (listData?.error) console.error("me/accounts error:", listData.error);
+    console.log("Pages found:", (listData?.data ?? []).map((p: { id: string; name?: string }) => `${p.id}:${p.name}`));
     const match = listData?.data?.find((p: { id: string }) => p.id === pageId);
     return match?.access_token ?? null;
   } catch (e) {
@@ -67,6 +99,7 @@ async function getPageAccessToken(pageId: string, token: string): Promise<string
     return null;
   }
 }
+
 
 
 Deno.serve(async (req) => {
@@ -137,7 +170,8 @@ Deno.serve(async (req) => {
 
     // Facebook/Instagram publishing requires a PAGE access token, not a user token.
     // If the saved token is a user token, exchange it for the Page token.
-    if (pageId) {
+    const scopes = await getTokenScopes(accessToken);
+    if (pageId && scopes.includes("pages_show_list")) {
       const pageToken = await getPageAccessToken(pageId, accessToken);
       if (pageToken) {
         accessToken = pageToken;
@@ -146,6 +180,22 @@ Deno.serve(async (req) => {
         console.log("Could not resolve Page access token; using saved token");
       }
     }
+
+
+    if (platform === "facebook" && scopes.length > 0) {
+      const required = ["pages_show_list", "pages_manage_posts", "pages_read_engagement"];
+      const missing = required.filter((s) => !scopes.includes(s));
+      if (missing.length > 0) {
+        return new Response(
+          JSON.stringify({
+            error: `O token do Facebook está sem as permissões: ${missing.join(", ")}. Gere um novo token no Graph API Explorer marcando pages_show_list, pages_read_engagement, pages_manage_posts (e instagram_content_publish) e reconecte em Perfil → Facebook → Reconectar.`,
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+
 
     let result;
 
@@ -280,31 +330,69 @@ async function publishToFacebook(
   videoUrl: string,
   caption: string
 ) {
-  console.log("Publishing video to Facebook...");
-  
-  // Upload video to Facebook page
-  const uploadUrl = `https://graph.facebook.com/${API_VERSION}/${pageId}/videos`;
-  const uploadParams = new URLSearchParams({
-    file_url: videoUrl,
-    description: caption || "",
-    access_token: accessToken,
-  });
+  console.log("Publishing video to Facebook via Reels API...");
 
-  console.log("Uploading video to Facebook...");
-  const uploadResponse = await fetch(uploadUrl, {
-    method: "POST",
-    body: uploadParams,
-  });
-  const uploadData = await uploadResponse.json();
+  // Step 1: Start an upload session
+  const startRes = await fetch(
+    `https://graph.facebook.com/${API_VERSION}/${pageId}/video_reels`,
+    {
+      method: "POST",
+      body: new URLSearchParams({
+        upload_phase: "start",
+        access_token: accessToken,
+      }),
+    }
+  );
+  const startData = await startRes.json();
 
-  if (uploadData.error) {
-    console.error("Error uploading to Facebook:", uploadData.error);
-    throw new Error(parseMetaError(uploadData.error));
+  if (startData.error) {
+    console.error("Error starting Facebook reel upload:", startData.error);
+    throw new Error(parseMetaError(startData.error));
   }
 
-  console.log("Facebook video publish success:", uploadData.id);
-  return { success: true, postId: uploadData.id, platform: "facebook" };
+  const videoId = startData.video_id;
+  const uploadUrl = startData.upload_url;
+  console.log("Reel upload session started:", videoId);
+
+  // Step 2: Send the hosted file to the upload URL
+  const uploadRes = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `OAuth ${accessToken}`,
+      file_url: videoUrl,
+    },
+  });
+  const uploadData = await uploadRes.json().catch(() => ({}));
+
+  if (uploadData?.error || uploadData?.success === false) {
+    console.error("Error uploading reel file:", uploadData);
+    throw new Error(parseMetaError(uploadData?.error ?? { message: "Falha ao enviar o vídeo para o Facebook" }));
+  }
+  console.log("Reel file uploaded");
+
+  // Step 3: Finish and publish
+  const finishRes = await fetch(
+    `https://graph.facebook.com/${API_VERSION}/${pageId}/video_reels?` +
+      new URLSearchParams({
+        upload_phase: "finish",
+        video_id: videoId,
+        video_state: "PUBLISHED",
+        description: caption || "",
+        access_token: accessToken,
+      }),
+    { method: "POST" }
+  );
+  const finishData = await finishRes.json();
+
+  if (finishData.error) {
+    console.error("Error publishing Facebook reel:", finishData.error);
+    throw new Error(parseMetaError(finishData.error));
+  }
+
+  console.log("Facebook video publish success:", videoId);
+  return { success: true, postId: videoId, platform: "facebook" };
 }
+
 
 // ============= IMAGE PUBLISHING =============
 
