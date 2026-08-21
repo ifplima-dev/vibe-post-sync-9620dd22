@@ -68,36 +68,63 @@ Deno.serve(async (req) => {
         .eq("id", post.id);
 
       const platformResults = [];
-      let hasError = false;
+      const errors: string[] = [];
+      let successCount = 0;
 
       for (const platform of post.platforms) {
         try {
           console.log(`  → Publishing ${mediaType} to ${platform}...`);
-          const result = await publishToMeta(
-            supabase,
-            post.user_id,
-            platform,
-            post.video_file_url,
-            isCarousel ? post.media_urls : null,
-            post.title + (post.description ? "\n\n" + post.description : ""),
-            mediaType
-          );
+
+          let result: { postId: string };
+
+          if (platform === "instagram" || platform === "facebook") {
+            result = await publishToMeta(
+              supabase,
+              post.user_id,
+              platform,
+              post.video_file_url,
+              isCarousel ? post.media_urls : null,
+              post.title + (post.description ? "\n\n" + post.description : ""),
+              mediaType
+            );
+          } else if (platform === "youtube" || platform === "tiktok") {
+            if (mediaType !== "video") {
+              throw new Error(`${platform} aceita apenas vídeos`);
+            }
+            result = await publishViaFunction(
+              platform === "youtube" ? "youtube-publish" : "tiktok-publish",
+              {
+                userId: post.user_id,
+                videoUrl: post.video_file_url,
+                title: post.title,
+                description: post.description || "",
+              }
+            );
+          } else {
+            throw new Error(`Plataforma ${platform} não suportada`);
+          }
+
           platformResults.push({ platform, success: true, postId: result.postId });
+          successCount++;
           console.log(`  ✅ Published to ${platform}: ${result.postId}`);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Unknown error";
           console.error(`  ❌ Failed to publish to ${platform}:`, errorMessage);
           platformResults.push({ platform, success: false, error: errorMessage });
-          hasError = true;
+          errors.push(`${platform}: ${errorMessage}`);
         }
       }
 
-      // Update final status
-      const finalStatus = hasError ? "failed" : "published";
+      // Published if at least one platform succeeded; otherwise failed
+      const finalStatus = successCount > 0 ? "published" : "failed";
       await supabase
         .from("scheduled_posts")
-        .update({ status: finalStatus })
+        .update({
+          status: finalStatus,
+          error_message: errors.length > 0 ? errors.join(" | ").slice(0, 2000) : null,
+        })
         .eq("id", post.id);
+
 
       console.log(`📌 Post ${post.id} final status: ${finalStatus}`);
       results.push({ postId: post.id, status: finalStatus, platforms: platformResults });
