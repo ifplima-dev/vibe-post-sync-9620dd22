@@ -11,7 +11,7 @@ export default function YouTubeTest() {
   const [isLoading, setIsLoading] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
 
-  const origin = window.location.origin;
+  const origin = "https://vibe-post-sync.lovable.app";
   const redirectUri = `${origin}/auth/callback`;
 
   const copy = (text: string, label: string) => {
@@ -87,8 +87,7 @@ export default function YouTubeTest() {
           </div>
 
           <div className="text-xs text-muted-foreground pt-2 border-t border-border">
-            ⚠️ Os valores acima são os <strong>do ambiente atual</strong>. Se você estiver no preview,
-            adicione também o domínio publicado (e vice-versa).
+            O OAuth do YouTube usa sempre estes valores canônicos, inclusive quando o teste começa no preview.
           </div>
         </div>
 
