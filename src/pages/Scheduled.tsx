@@ -154,6 +154,7 @@ export default function Scheduled() {
                   createdAt: new Date(post.created_at),
                   mediaUrls: post.media_urls || undefined,
                   mediaType: (post.media_type as "video" | "image") || undefined,
+                  errorMessage: post.error_message || undefined,
                 }}
                 onPublishNow={handlePublishNow}
                 onCancel={handleCancel}
