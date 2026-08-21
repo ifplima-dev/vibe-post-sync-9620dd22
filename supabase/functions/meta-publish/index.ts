@@ -42,6 +42,28 @@ function parseMetaError(error: { message?: string; code?: number; error_subcode?
   if (code === 4) {
     return "Limite de requisições excedido. Aguarde alguns minutos e tente novamente.";
   }
+// Resolve a Page access token from a (possibly) user access token
+async function getPageAccessToken(pageId: string, token: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${API_VERSION}/${pageId}?fields=access_token&access_token=${token}`
+    );
+    const data = await res.json();
+    if (data?.access_token) return data.access_token as string;
+
+    // Fallback: search the user's pages list
+    const listRes = await fetch(
+      `https://graph.facebook.com/${API_VERSION}/me/accounts?fields=id,access_token&limit=100&access_token=${token}`
+    );
+    const listData = await listRes.json();
+    const match = listData?.data?.find((p: { id: string }) => p.id === pageId);
+    return match?.access_token ?? null;
+  } catch (e) {
+    console.error("Failed to resolve page access token:", e);
+    return null;
+  }
+}
+
 
   return message;
 }
