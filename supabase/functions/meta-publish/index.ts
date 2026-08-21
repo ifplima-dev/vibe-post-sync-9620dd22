@@ -43,6 +43,11 @@ function parseMetaError(error: { message?: string; code?: number; error_subcode?
     return "Limite de requisições excedido. Aguarde alguns minutos e tente novamente.";
   }
 
+  if (code === 200) {
+    return `Sem permissão para publicar nessa Página: ${message} Gere um novo token incluindo pages_show_list, pages_read_engagement e pages_manage_posts e reconecte em Perfil → Facebook → Reconectar.`;
+  }
+
+
   return message;
 }
 
