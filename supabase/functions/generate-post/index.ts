@@ -74,6 +74,14 @@ Deno.serve(async (req) => {
     }
 
     const { theme, tone, ratio, style } = parsed.data;
+    const settings = parsed.data.settings ?? {
+      enabled: true,
+      captionLength: "media" as const,
+      useEmoji: true,
+      hashtagCount: 10,
+    };
+
+    const hashtagLimit = settings.hashtagCount ?? 10;
 
     const systemPrompt = `Você é um social media brasileiro especialista em Instagram, Facebook e TikTok.
 Responda SEMPRE em JSON válido com as chaves exatas: imagePrompt, title, caption, hashtags.
@@ -81,8 +89,40 @@ Responda SEMPRE em JSON válido com as chaves exatas: imagePrompt, title, captio
 Regras:
 - "imagePrompt": prompt em INGLÊS. Traduza e INTERPRETE o tema como uma CENA SIMBÓLICA e narrativa (pessoas, ambiente, objetos, metáforas visuais que representem a mensagem), nunca um retrato genérico. Descreva composição, luz, cores e emoção. Estilo obrigatório: ${STYLE_BRIEF[style]}. Formato ${ratio}. Finalize com: ${NEGATIVES}.
 - "title": título curto em português, no máximo 80 caracteres.
-- "caption": legenda em português com tom ${TONE_LABEL[tone]}, entre 300 e 700 caracteres, quebrada em pequenos parágrafos, terminando com uma chamada para ação. NÃO inclua hashtags na caption.
-- "hashtags": array com 8 a 12 hashtags em português relevantes, cada uma começando com #.`;
+- "caption": legenda em português com tom ${TONE_LABEL[tone]}, ${LENGTH_BRIEF[settings.captionLength]}, quebrada em pequenos parágrafos, terminando com uma chamada para ação. ${settings.useEmoji ? "Use emojis com moderação." : "NÃO use nenhum emoji."} ${settings.cta ? `Use exatamente esta chamada para ação no final: "${settings.cta}".` : ""} NÃO inclua hashtags na caption.
+- "hashtags": array com ${hashtagLimit === 0 ? "0" : `até ${hashtagLimit}`} hashtags em português relevantes, cada uma começando com #.${settings.extraInstructions ? `\n\nInstruções extras do usuário (siga com prioridade): ${settings.extraInstructions}` : ""}`;
+
+    const localResult = (notice?: string) => {
+      const clean = theme.trim();
+      const slug = clean
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 4);
+      const cta = settings.cta ?? "Salva esse post e comenta o que você achou!";
+      const captionBase: Record<string, string> = {
+        descontraido: `${clean}${settings.useEmoji ? " ✨" : ""}\n\n${cta}`,
+        profissional: `${clean}.\n\nConteúdo pensado para quem busca resultado com consistência.\n\n${cta}`,
+        vendas: `${clean}${settings.useEmoji ? " 🚀" : ""}\n\nAproveite agora.\n\n${cta}`,
+      };
+      return {
+        imagePrompt: `${STYLE_BRIEF[style]}, a symbolic narrative scene that visually represents this Portuguese message: "${clean}", meaningful environment with people and symbolic objects, storytelling composition, ${NEGATIVES}`,
+        title: clean.slice(0, 80),
+        caption: captionBase[tone] ?? captionBase.descontraido,
+        hashtags: ["#" + (slug[0] ?? "post"), ...slug.slice(1).map((w) => "#" + w), "#dicas", "#inspiracao"].slice(
+          0,
+          hashtagLimit,
+        ),
+        notice,
+      };
+    };
+
+    if (!settings.enabled) {
+      return json(localResult("Legendas com IA desativadas no perfil: gerada em modo simples."));
+    }
+
 
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
