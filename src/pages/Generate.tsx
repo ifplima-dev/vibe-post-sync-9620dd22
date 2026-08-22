@@ -42,14 +42,8 @@ const TONES: { key: ToneKey; label: string }[] = [
   { key: "vendas", label: "Vendas" },
 ];
 
-type EngineKey = "flux" | "turbo" | "kontext";
 type StyleKey = "ilustracao" | "pintura" | "foto";
 
-const ENGINES: { key: EngineKey; label: string; hint: string }[] = [
-  { key: "flux", label: "Flux", hint: "Realista" },
-  { key: "turbo", label: "Turbo", hint: "Rápido" },
-  { key: "kontext", label: "Kontext", hint: "Criativo" },
-];
 
 const STYLES: { key: StyleKey; label: string; hint: string }[] = [
   { key: "ilustracao", label: "Ilustração", hint: "Cinemática" },
@@ -63,24 +57,15 @@ const TEXT_POSITIONS: { key: TextPosition; label: string; icon: typeof AlignVert
   { key: "bottom", label: "Base", icon: AlignVerticalJustifyEnd },
 ];
 
-function buildPollinationsUrl(prompt: string, ratio: RatioKey, seed: number, engine: EngineKey) {
-  const { width, height } = RATIOS[ratio];
-  const params = new URLSearchParams({
-    width: String(width),
-    height: String(height),
-    seed: String(seed),
-    nologo: "true",
-    enhance: "true",
-    model: engine,
-  });
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
+function sizeForRatio(ratio: RatioKey): "1024x1024" | "1024x1536" {
+  return ratio === "1:1" ? "1024x1024" : "1024x1536";
 }
+
 
 export default function Generate() {
   const [theme, setTheme] = useState("");
   const [tone, setTone] = useState<ToneKey>("descontraido");
   const [ratio, setRatio] = useState<RatioKey>("1:1");
-  const [engine, setEngine] = useState<EngineKey>("flux");
   const [style, setStyle] = useState<StyleKey>("ilustracao");
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -110,8 +95,42 @@ export default function Generate() {
     if (aiSettings?.tone) setTone(aiSettings.tone as ToneKey);
   }, [aiSettings?.tone]);
 
-
   const fullDescription = [caption, hashtags.join(" ")].filter(Boolean).join("\n\n");
+
+  const generateImage = async (prompt: string) => {
+    setIsImageLoading(true);
+    setImageLoaded(false);
+    setImageUrl("");
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-image", {
+        body: { prompt, size: sizeForRatio(ratio), quality: "low" },
+      });
+
+      if (error) {
+        const contextMessage = await (async () => {
+          try {
+            const body = await (error as { context?: Response }).context?.clone().json();
+            return body?.error as string | undefined;
+          } catch {
+            return undefined;
+          }
+        })();
+        throw new Error(contextMessage || error.message);
+      }
+      if (data?.error) throw new Error(data.error);
+      if (!data?.image) throw new Error("A IA não retornou nenhuma imagem.");
+
+      setImageUrl(data.image as string);
+    } catch (err) {
+      setIsImageLoading(false);
+      toast({
+        title: "Falha ao gerar a imagem",
+        description: err instanceof Error ? err.message : "Tente novamente em instantes.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const generate = async () => {
     if (theme.trim().length < 2) {
@@ -158,14 +177,12 @@ export default function Generate() {
       setTitle(data.title);
       setCaption(data.caption);
       setHashtags(Array.isArray(data.hashtags) ? data.hashtags : []);
-      setIsImageLoading(true);
-      setImageLoaded(false);
-      setImageUrl(buildPollinationsUrl(data.imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
 
       if (data.notice) {
         toast({ title: "Modo simples", description: data.notice });
       }
 
+      await generateImage(data.imagePrompt);
     } catch (error) {
       toast({
         title: "Não foi possível gerar",
@@ -179,9 +196,8 @@ export default function Generate() {
 
   const regenerateImage = () => {
     if (!imagePrompt) return;
-    setIsImageLoading(true);
-    setImageLoaded(false);
-    setImageUrl(buildPollinationsUrl(imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
+    void generateImage(imagePrompt);
+
   };
 
   const renderCanvas = () => {
@@ -365,27 +381,15 @@ export default function Generate() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Motor de imagem (grátis)</label>
-            <div className="grid grid-cols-3 gap-2">
-              {ENGINES.map((e) => (
-                <button
-                  key={e.key}
-                  type="button"
-                  onClick={() => setEngine(e.key)}
-                  className={cn(
-                    "flex flex-col items-center gap-0.5 py-2 rounded-xl text-xs font-medium border transition-all",
-                    engine === e.key
-                      ? "border-primary bg-primary/20 text-primary"
-                      : "border-border/50 text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {e.label}
-                  <span className="text-[10px] opacity-70">{e.hint}</span>
-                </button>
-              ))}
-            </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Motor de imagem</label>
+            <p className="text-xs text-muted-foreground rounded-lg bg-muted/40 p-3">
+              Imagens geradas com <span className="text-foreground font-medium">GPT Image (gpt-image-2)</span> em
+              qualidade baixa para economizar créditos.
+            </p>
           </div>
+
+
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Estilo da imagem</label>
