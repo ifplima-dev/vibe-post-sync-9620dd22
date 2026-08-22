@@ -34,14 +34,23 @@ const TONES: { key: ToneKey; label: string }[] = [
   { key: "vendas", label: "Vendas" },
 ];
 
-function buildPollinationsUrl(prompt: string, ratio: RatioKey, seed: number) {
+type EngineKey = "flux" | "turbo" | "kontext";
+
+const ENGINES: { key: EngineKey; label: string; hint: string }[] = [
+  { key: "flux", label: "Flux", hint: "Realista" },
+  { key: "turbo", label: "Turbo", hint: "Rápido" },
+  { key: "kontext", label: "Kontext", hint: "Criativo" },
+];
+
+function buildPollinationsUrl(prompt: string, ratio: RatioKey, seed: number, engine: EngineKey) {
   const { width, height } = RATIOS[ratio];
   const params = new URLSearchParams({
     width: String(width),
     height: String(height),
     seed: String(seed),
     nologo: "true",
-    model: "flux",
+    enhance: "true",
+    model: engine,
   });
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
 }
@@ -50,6 +59,8 @@ export default function Generate() {
   const [theme, setTheme] = useState("");
   const [tone, setTone] = useState<ToneKey>("descontraido");
   const [ratio, setRatio] = useState<RatioKey>("1:1");
+  const [engine, setEngine] = useState<EngineKey>("flux");
+
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(false);
