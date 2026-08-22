@@ -149,30 +149,15 @@ Regras:
       // Devolvemos uma legenda simples gerada localmente + prompt de imagem,
       // para o Pollinations (grátis) continuar funcionando.
       if (aiResponse.status === 402 || aiResponse.status === 403) {
-        const clean = theme.trim();
-        const slug = clean
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .split(/\s+/)
-          .filter(Boolean)
-          .slice(0, 4);
-        const captionBase: Record<string, string> = {
-          descontraido: `${clean} do jeito que a gente gosta ✨\n\nSalva esse post e conta aqui nos comentários o que você achou!`,
-          profissional: `${clean}.\n\nConteúdo pensado para quem busca resultado com consistência. Acompanhe para mais.`,
-          vendas: `${clean} 🚀\n\nAproveite agora: chame no direct e garanta o seu antes que acabe!`,
-        };
-        return json({
-          imagePrompt: `${STYLE_BRIEF[style]}, a symbolic narrative scene that visually represents this Portuguese message: "${clean}", meaningful environment with people and symbolic objects, storytelling composition, ${NEGATIVES}`,
-          title: clean.slice(0, 80),
-          caption: captionBase[tone] ?? captionBase.descontraido,
-          hashtags: ["#" + (slug[0] ?? "post"), ...slug.slice(1).map((w) => "#" + w), "#dicas", "#inspiracao"],
-          notice:
+        return json(
+          localResult(
             aiResponse.status === 402
               ? "Créditos de IA esgotados: legenda gerada em modo simples. Adicione créditos para legendas com IA."
               : "Uso de IA bloqueado no workspace: legenda gerada em modo simples.",
-        });
+          ),
+        );
       }
+
       if (aiResponse.status === 429) {
         return json({ error: "Muitas solicitações em sequência. Aguarde alguns segundos e tente de novo." }, 429);
       }
