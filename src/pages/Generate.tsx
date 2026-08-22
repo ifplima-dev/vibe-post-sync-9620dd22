@@ -135,6 +135,7 @@ export default function Generate() {
       setCaption(data.caption);
       setHashtags(Array.isArray(data.hashtags) ? data.hashtags : []);
       setIsImageLoading(true);
+      setImageLoaded(false);
       setImageUrl(buildPollinationsUrl(data.imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
 
       if (data.notice) {
