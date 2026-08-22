@@ -107,7 +107,7 @@ export default function Generate() {
       setCaption(data.caption);
       setHashtags(Array.isArray(data.hashtags) ? data.hashtags : []);
       setIsImageLoading(true);
-      setImageUrl(buildPollinationsUrl(data.imagePrompt, ratio, Math.floor(Math.random() * 1_000_000)));
+      setImageUrl(buildPollinationsUrl(data.imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
 
       if (data.notice) {
         toast({ title: "Modo simples", description: data.notice });
