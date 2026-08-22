@@ -102,6 +102,12 @@ export default function Generate() {
 
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { data: aiSettings } = useAiCaptionSettings();
+
+  useEffect(() => {
+    if (aiSettings?.tone) setTone(aiSettings.tone as ToneKey);
+  }, [aiSettings?.tone]);
+
 
   const fullDescription = [caption, hashtags.join(" ")].filter(Boolean).join("\n\n");
 
