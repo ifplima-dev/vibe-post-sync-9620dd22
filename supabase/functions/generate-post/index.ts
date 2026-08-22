@@ -5,7 +5,21 @@ const BodySchema = z.object({
   theme: z.string().min(2).max(300),
   tone: z.enum(["descontraido", "profissional", "vendas"]).default("descontraido"),
   ratio: z.enum(["1:1", "4:5", "9:16"]).default("1:1"),
+  style: z.enum(["ilustracao", "pintura", "foto"]).default("ilustracao"),
 });
+
+const STYLE_BRIEF: Record<string, string> = {
+  ilustracao:
+    "cinematic digital illustration, painterly concept-art style, warm golden hour light, dramatic god rays, rich amber and teal palette, symbolic storytelling composition, highly detailed, emotional and inspirational",
+  pintura:
+    "classical oil painting, thick expressive brush strokes, chiaroscuro lighting, warm renaissance palette, canvas texture, dramatic and reverent atmosphere",
+  foto:
+    "photorealistic editorial photograph, natural cinematic lighting, shallow depth of field, 50mm lens, rich detail, real people and real places",
+};
+
+const NEGATIVES =
+  "no text, no letters, no words, no watermark, no logo, not anime, not manga, no solo female portrait, no selfie, no close-up face only, avoid generic beauty portrait";
+
 
 const TONE_LABEL: Record<string, string> = {
   descontraido: "descontraído, leve e divertido, com emojis",
@@ -42,16 +56,17 @@ Deno.serve(async (req) => {
       return json({ error: "Informe um tema com pelo menos 2 caracteres." }, 400);
     }
 
-    const { theme, tone, ratio } = parsed.data;
+    const { theme, tone, ratio, style } = parsed.data;
 
     const systemPrompt = `Você é um social media brasileiro especialista em Instagram, Facebook e TikTok.
 Responda SEMPRE em JSON válido com as chaves exatas: imagePrompt, title, caption, hashtags.
 
 Regras:
-- "imagePrompt": prompt em INGLÊS, detalhado (câmera, luz, cores, composição, estilo fotográfico), para gerar uma imagem impactante sobre o tema. Sem texto/letras na imagem. Formato ${ratio}.
+- "imagePrompt": prompt em INGLÊS. Traduza e INTERPRETE o tema como uma CENA SIMBÓLICA e narrativa (pessoas, ambiente, objetos, metáforas visuais que representem a mensagem), nunca um retrato genérico. Descreva composição, luz, cores e emoção. Estilo obrigatório: ${STYLE_BRIEF[style]}. Formato ${ratio}. Finalize com: ${NEGATIVES}.
 - "title": título curto em português, no máximo 80 caracteres.
 - "caption": legenda em português com tom ${TONE_LABEL[tone]}, entre 300 e 700 caracteres, quebrada em pequenos parágrafos, terminando com uma chamada para ação. NÃO inclua hashtags na caption.
 - "hashtags": array com 8 a 12 hashtags em português relevantes, cada uma começando com #.`;
+
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -91,7 +106,7 @@ Regras:
           vendas: `${clean} 🚀\n\nAproveite agora: chame no direct e garanta o seu antes que acabe!`,
         };
         return json({
-          imagePrompt: `photorealistic editorial photograph, subject: "${clean}", natural cinematic lighting, shallow depth of field, 50mm lens, rich detail, real people and real places, no text, no letters, no watermark, not anime, not cartoon, not 3d render, not illustration`,
+          imagePrompt: `${STYLE_BRIEF[style]}, a symbolic narrative scene that visually represents this Portuguese message: "${clean}", meaningful environment with people and symbolic objects, storytelling composition, ${NEGATIVES}`,
           title: clean.slice(0, 80),
           caption: captionBase[tone] ?? captionBase.descontraido,
           hashtags: ["#" + (slug[0] ?? "post"), ...slug.slice(1).map((w) => "#" + w), "#dicas", "#inspiracao"],
