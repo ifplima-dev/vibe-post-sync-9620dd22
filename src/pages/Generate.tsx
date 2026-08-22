@@ -257,6 +257,19 @@ export default function Generate() {
               )}
             </div>
 
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Prompt da imagem (inglês)</label>
+              <Textarea
+                value={imagePrompt}
+                onChange={(e) => setImagePrompt(e.target.value)}
+                rows={3}
+                className="text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Ajuste o prompt e toque em "Imagem" para gerar de novo.
+              </p>
+            </div>
+
             <div className="flex gap-2">
               <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={regenerateImage}>
                 <RefreshCw className="w-4 h-4" /> Imagem
@@ -268,6 +281,7 @@ export default function Generate() {
                 <Copy className="w-4 h-4" />
               </Button>
             </div>
+
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Título</label>
