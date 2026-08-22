@@ -58,7 +58,7 @@ const STYLES: { key: StyleKey; label: string; hint: string }[] = [
 const TEXT_POSITIONS: { key: TextPosition; label: string; icon: typeof AlignVerticalJustifyCenter }[] = [
   { key: "top", label: "Topo", icon: AlignVerticalJustifyStart },
   { key: "center", label: "Meio", icon: AlignVerticalJustifyCenter },
-  { key: "bottom", label: "Base", icon: AlignVerticalJustifyStart },
+  { key: "bottom", label: "Base", icon: AlignVerticalJustifyEnd },
 ];
 
 function buildPollinationsUrl(prompt: string, ratio: RatioKey, seed: number, engine: EngineKey) {
