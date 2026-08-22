@@ -73,20 +73,40 @@ Regras:
       const errorText = await aiResponse.text().catch(() => "");
       console.error("AI gateway error", aiResponse.status, errorText);
 
-      if (aiResponse.status === 402) {
-        return json(
-          { error: "Créditos de IA esgotados. Adicione créditos no workspace para continuar gerando." },
-          402,
-        );
+      // 402 (sem créditos) e 403 (IA bloqueada): não travam o gerador.
+      // Devolvemos uma legenda simples gerada localmente + prompt de imagem,
+      // para o Pollinations (grátis) continuar funcionando.
+      if (aiResponse.status === 402 || aiResponse.status === 403) {
+        const clean = theme.trim();
+        const slug = clean
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 4);
+        const captionBase: Record<string, string> = {
+          descontraido: `${clean} do jeito que a gente gosta ✨\n\nSalva esse post e conta aqui nos comentários o que você achou!`,
+          profissional: `${clean}.\n\nConteúdo pensado para quem busca resultado com consistência. Acompanhe para mais.`,
+          vendas: `${clean} 🚀\n\nAproveite agora: chame no direct e garanta o seu antes que acabe!`,
+        };
+        return json({
+          imagePrompt: `high quality professional photo about ${clean}, cinematic lighting, vibrant colors, sharp focus, no text`,
+          title: clean.slice(0, 80),
+          caption: captionBase[tone] ?? captionBase.descontraido,
+          hashtags: ["#" + (slug[0] ?? "post"), ...slug.slice(1).map((w) => "#" + w), "#dicas", "#inspiracao"],
+          notice:
+            aiResponse.status === 402
+              ? "Créditos de IA esgotados: legenda gerada em modo simples. Adicione créditos para legendas com IA."
+              : "Uso de IA bloqueado no workspace: legenda gerada em modo simples.",
+        });
       }
       if (aiResponse.status === 429) {
         return json({ error: "Muitas solicitações em sequência. Aguarde alguns segundos e tente de novo." }, 429);
       }
-      if (aiResponse.status === 403) {
-        return json({ error: "Uso de IA bloqueado nas configurações do workspace." }, 403);
-      }
       return json({ error: `Falha na geração de texto (${aiResponse.status}).` }, 502);
     }
+
 
     const aiData = await aiResponse.json();
     const content: string = aiData?.choices?.[0]?.message?.content ?? "";
