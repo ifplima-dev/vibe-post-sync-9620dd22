@@ -68,6 +68,8 @@ export default function Generate() {
   const [tone, setTone] = useState<ToneKey>("descontraido");
   const [ratio, setRatio] = useState<RatioKey>("1:1");
   const [engine, setEngine] = useState<EngineKey>("flux");
+  const [style, setStyle] = useState<StyleKey>("ilustracao");
+
 
 
   const [isGenerating, setIsGenerating] = useState(false);
