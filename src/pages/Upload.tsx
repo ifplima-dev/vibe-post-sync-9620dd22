@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Upload as UploadIcon, X, Play, Scissors, Type, Share2, CalendarClock, Loader2, ChevronLeft, ChevronRight, Images, Square, RectangleVertical, Smartphone, Monitor } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +83,24 @@ export default function Upload() {
   const captionLength = title.length + (description ? 2 + description.length : 0); // +2 for "\n\n"
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Prefill from the post generator (theme -> image + caption)
+  useEffect(() => {
+    const generated = (location.state as { generated?: { file?: File; title?: string; description?: string; ratio?: AspectRatioKey } } | null)?.generated;
+    if (!generated?.file) return;
+
+    setMediaFiles([generated.file]);
+    setMediaPreviews([URL.createObjectURL(generated.file)]);
+    setMediaType("image");
+    setCarouselIndex(0);
+    if (generated.title) setTitle(generated.title);
+    if (generated.description) setDescription(generated.description);
+    if (generated.ratio) setSelectedRatio(generated.ratio);
+
+    // Clear the state so a refresh does not re-apply it
+    navigate("/upload", { replace: true, state: null });
+  }, [location.state, navigate]);
 
   const { data: accounts, isLoading: accountsLoading } = useConnectedAccounts();
   const { user } = useAuth();
