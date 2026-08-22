@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_caption_settings: {
+        Row: {
+          caption_length: string
+          created_at: string
+          cta: string | null
+          enabled: boolean
+          extra_instructions: string | null
+          hashtag_count: number
+          id: string
+          tone: string
+          updated_at: string
+          use_emoji: boolean
+          user_id: string
+        }
+        Insert: {
+          caption_length?: string
+          created_at?: string
+          cta?: string | null
+          enabled?: boolean
+          extra_instructions?: string | null
+          hashtag_count?: number
+          id?: string
+          tone?: string
+          updated_at?: string
+          use_emoji?: boolean
+          user_id: string
+        }
+        Update: {
+          caption_length?: string
+          created_at?: string
+          cta?: string | null
+          enabled?: boolean
+          extra_instructions?: string | null
+          hashtag_count?: number
+          id?: string
+          tone?: string
+          updated_at?: string
+          use_emoji?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       comments: {
         Row: {
           author_name: string | null
