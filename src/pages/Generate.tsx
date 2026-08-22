@@ -83,6 +83,7 @@ export default function Generate() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
 
   const [imagePrompt, setImagePrompt] = useState("");
