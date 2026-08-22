@@ -1,24 +1,24 @@
-# Disparador de Conteúdo Semanal
+# Gerador de imagem com GPT (gpt-image-2)
 
-Criar uma nova página onde você lista os 7 temas da semana, escolhe horário e plataformas, e o app gera imagem + legenda para cada tema e agenda tudo automaticamente.
+Hoje as imagens vêm só do Pollinations (grátis). Vou adicionar o GPT Image como motor de imagem, com qualidade baixa para economizar.
 
-## Como vai funcionar
+## O que muda para você
 
-1. Nova página **/semana** ("Semana") com:
-   - 7 campos de tema (Seg a Dom), preenchimento livre.
-   - Data de início da semana (padrão: próxima segunda) e horário único de publicação (ex. 19:00, horário de Brasília) — com opção de horário diferente por dia.
-   - Estilo da imagem (Ilustração / Pintura / Foto), modelo do Pollinations, formato (1:1, 4:5, 9:16).
-   - Frase de impacto opcional por dia (mesma lógica de overlay do gerador atual).
-   - Seleção de plataformas (Instagram, Facebook, YouTube, TikTok) igual à tela de upload.
-2. Botão **"Gerar e agendar semana"**: para cada tema, o app chama a função de geração (legenda + prompt), respeitando suas configurações de Legendas com IA do Perfil, gera a imagem, aplica a frase de impacto, faz upload no storage e cria o post agendado.
-3. A publicação em si continua com o processador de agendamentos que já existe (roda a cada minuto) — nada novo é necessário no publicador.
-4. Progresso por linha: "Gerando…", "Agendado", "Erro" com botão de tentar novamente por dia. Se os créditos de IA estiverem esgotados, entra o modo simples (legenda local + imagem gratuita), como já acontece no gerador.
-5. Ao final: resumo ("7 de 7 agendados") e link para a tela de Agendados, onde os posts aparecem com miniatura e podem ser editados/excluídos.
+- No gerador, o seletor de motor passa a ter a opção **GPT Image (OpenAI)** ao lado de Flux / Turbo / Kontext.
+- Ao escolher GPT Image, a imagem é gerada pela OpenAI em 1024x1024, qualidade "low" (mais barata).
+- A frase de impacto, o recorte por formato (1:1, 4:5, 9:16) e o botão "Usar nesta postagem" continuam funcionando igual.
+- Se a IA integrada estiver sem créditos, o app tenta automaticamente sua chave da OpenAI já salva; se as duas falharem, ele volta para o Pollinations e avisa no toast.
 
 ## Detalhes técnicos
 
-- Novo componente `src/pages/WeeklyDispatch.tsx` + rota protegida em `App.tsx` e item no menu/bottom nav.
-- Novo hook `src/hooks/useWeeklyDispatch.ts`: fila sequencial (um tema por vez, para não estourar rate limit), reutilizando a lógica de geração/overlay de `Generate.tsx` extraída para `src/lib/postGenerator.ts` (sem mudar o comportamento atual do gerador).
-- Reuso de `generate-post` (nenhuma edge function nova), upload em `user_id/uuid.jpg` conforme a regra de storage, e inserção via `useCreateScheduledPost` com `media_urls`/`media_type: "image"`.
-- Horários convertidos de BRT para UTC com `src/lib/timezone.ts`.
-- Opcional (posso incluir): salvar o conjunto da semana como rascunho local (localStorage) para retomar se a página for fechada no meio da geração.
+1. Nova edge function `generate-image`:
+   - Valida o corpo com Zod: `prompt` (obrigatório), `size` (default `1024x1024`), `quality` (default `low`).
+   - Chamada 1 (padrão): `POST https://ai.gateway.lovable.dev/v1/images/generations` com `LOVABLE_API_KEY` e corpo `{ model: "openai/gpt-image-2", prompt, size: "1024x1024", quality: "low", n: 1 }` (sem `stream` — resposta JSON única, mais simples para devolver ao cliente).
+   - Chamada 2 (reserva): se o gateway retornar 401/402/403/429/5xx e `OPENAI_API_KEY` existir, repete em `https://api.openai.com/v1/images/generations` com `model: "gpt-image-2"`, `quality: "low"`, `size: "1024x1024"`.
+   - Retorna `{ image: "data:image/png;base64,..." , provider }`; em falha terminal retorna erro com mensagem clara (sem loop de retries).
+   - Sem `AbortSignal.timeout` — geração pode levar dezenas de segundos.
+2. `src/pages/Generate.tsx`:
+   - `EngineKey` ganha `"gpt-image"`; quando selecionado, em vez de montar URL do Pollinations, chama `supabase.functions.invoke("generate-image", { body: { prompt: imagePrompt } })` e usa o data URL retornado em `imageUrl`.
+   - Estado de carregamento reaproveitado (blur no preview) e toast de erro com fallback para Pollinations.
+   - O canvas já lê de `imageUrl`; data URL não sofre restrição de CORS, então o overlay de texto e o `toBlob` seguem funcionando.
+3. Teste da função após criar: invocar uma vez e confirmar que a imagem volta.
