@@ -96,7 +96,7 @@ export default function Generate() {
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-post", {
-        body: { theme: theme.trim(), tone, ratio },
+        body: { theme: theme.trim(), tone, ratio, style },
       });
 
       if (error) {
