@@ -402,10 +402,12 @@ export default function Generate() {
                 crossOrigin="anonymous"
                 onLoad={() => {
                   setIsImageLoading(false);
+                  setImageLoaded(true);
                   renderCanvas();
                 }}
                 onError={() => {
                   setIsImageLoading(false);
+                  setImageLoaded(false);
                   toast({
                     title: "A imagem não carregou",
                     description: "O serviço gratuito pode estar ocupado. Toque em regenerar.",
