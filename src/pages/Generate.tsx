@@ -177,14 +177,12 @@ export default function Generate() {
       setTitle(data.title);
       setCaption(data.caption);
       setHashtags(Array.isArray(data.hashtags) ? data.hashtags : []);
-      setIsImageLoading(true);
-      setImageLoaded(false);
-      setImageUrl(buildPollinationsUrl(data.imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
 
       if (data.notice) {
         toast({ title: "Modo simples", description: data.notice });
       }
 
+      await generateImage(data.imagePrompt);
     } catch (error) {
       toast({
         title: "Não foi possível gerar",
@@ -198,9 +196,8 @@ export default function Generate() {
 
   const regenerateImage = () => {
     if (!imagePrompt) return;
-    setIsImageLoading(true);
-    setImageLoaded(false);
-    setImageUrl(buildPollinationsUrl(imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
+    void generateImage(imagePrompt);
+
   };
 
   const renderCanvas = () => {
