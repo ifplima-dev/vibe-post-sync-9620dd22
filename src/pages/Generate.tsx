@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
+import { useAiCaptionSettings } from "@/hooks/useAiCaptionSettings";
+
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
