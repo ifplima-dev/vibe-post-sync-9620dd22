@@ -95,8 +95,42 @@ export default function Generate() {
     if (aiSettings?.tone) setTone(aiSettings.tone as ToneKey);
   }, [aiSettings?.tone]);
 
-
   const fullDescription = [caption, hashtags.join(" ")].filter(Boolean).join("\n\n");
+
+  const generateImage = async (prompt: string) => {
+    setIsImageLoading(true);
+    setImageLoaded(false);
+    setImageUrl("");
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-image", {
+        body: { prompt, size: sizeForRatio(ratio), quality: "low" },
+      });
+
+      if (error) {
+        const contextMessage = await (async () => {
+          try {
+            const body = await (error as { context?: Response }).context?.clone().json();
+            return body?.error as string | undefined;
+          } catch {
+            return undefined;
+          }
+        })();
+        throw new Error(contextMessage || error.message);
+      }
+      if (data?.error) throw new Error(data.error);
+      if (!data?.image) throw new Error("A IA não retornou nenhuma imagem.");
+
+      setImageUrl(data.image as string);
+    } catch (err) {
+      setIsImageLoading(false);
+      toast({
+        title: "Falha ao gerar a imagem",
+        description: err instanceof Error ? err.message : "Tente novamente em instantes.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const generate = async () => {
     if (theme.trim().length < 2) {
