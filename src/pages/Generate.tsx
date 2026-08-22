@@ -541,7 +541,7 @@ export default function Generate() {
               </div>
             )}
 
-            <Button onClick={usePost} disabled={isPreparing || isImageLoading} className="w-full gap-2">
+            <Button onClick={usePost} disabled={isPreparing || isImageLoading || !imageLoaded} className="w-full gap-2">
               {isPreparing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
               Usar nesta postagem
             </Button>
