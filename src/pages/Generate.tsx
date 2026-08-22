@@ -35,12 +35,20 @@ const TONES: { key: ToneKey; label: string }[] = [
 ];
 
 type EngineKey = "flux" | "turbo" | "kontext";
+type StyleKey = "ilustracao" | "pintura" | "foto";
 
 const ENGINES: { key: EngineKey; label: string; hint: string }[] = [
   { key: "flux", label: "Flux", hint: "Realista" },
   { key: "turbo", label: "Turbo", hint: "Rápido" },
   { key: "kontext", label: "Kontext", hint: "Criativo" },
 ];
+
+const STYLES: { key: StyleKey; label: string; hint: string }[] = [
+  { key: "ilustracao", label: "Ilustração", hint: "Cinemática" },
+  { key: "pintura", label: "Pintura", hint: "Clássica" },
+  { key: "foto", label: "Foto", hint: "Realista" },
+];
+
 
 function buildPollinationsUrl(prompt: string, ratio: RatioKey, seed: number, engine: EngineKey) {
   const { width, height } = RATIOS[ratio];
