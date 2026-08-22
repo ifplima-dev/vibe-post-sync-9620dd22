@@ -114,8 +114,24 @@ export default function Generate() {
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-post", {
-        body: { theme: theme.trim(), tone, ratio, style },
+        body: {
+          theme: theme.trim(),
+          tone: aiSettings?.tone ?? tone,
+          ratio,
+          style,
+          settings: aiSettings
+            ? {
+                enabled: aiSettings.enabled,
+                captionLength: aiSettings.caption_length,
+                useEmoji: aiSettings.use_emoji,
+                hashtagCount: aiSettings.hashtag_count,
+                cta: aiSettings.cta || undefined,
+                extraInstructions: aiSettings.extra_instructions || undefined,
+              }
+            : undefined,
+        },
       });
+
 
       if (error) {
         const contextMessage = await (async () => {
