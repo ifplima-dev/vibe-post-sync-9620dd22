@@ -1,12 +1,29 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
 
+const SettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  captionLength: z.enum(["curta", "media", "longa"]).default("media"),
+  useEmoji: z.boolean().default(true),
+  hashtagCount: z.number().int().min(0).max(20).default(10),
+  cta: z.string().max(140).optional(),
+  extraInstructions: z.string().max(500).optional(),
+});
+
 const BodySchema = z.object({
   theme: z.string().min(2).max(300),
   tone: z.enum(["descontraido", "profissional", "vendas"]).default("descontraido"),
   ratio: z.enum(["1:1", "4:5", "9:16"]).default("1:1"),
   style: z.enum(["ilustracao", "pintura", "foto"]).default("ilustracao"),
+  settings: SettingsSchema.optional(),
 });
+
+const LENGTH_BRIEF: Record<string, string> = {
+  curta: "entre 120 e 250 caracteres",
+  media: "entre 300 e 700 caracteres",
+  longa: "entre 800 e 1400 caracteres",
+};
+
 
 const STYLE_BRIEF: Record<string, string> = {
   ilustracao:
