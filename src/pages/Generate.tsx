@@ -42,14 +42,8 @@ const TONES: { key: ToneKey; label: string }[] = [
   { key: "vendas", label: "Vendas" },
 ];
 
-type EngineKey = "flux" | "turbo" | "kontext";
 type StyleKey = "ilustracao" | "pintura" | "foto";
 
-const ENGINES: { key: EngineKey; label: string; hint: string }[] = [
-  { key: "flux", label: "Flux", hint: "Realista" },
-  { key: "turbo", label: "Turbo", hint: "Rápido" },
-  { key: "kontext", label: "Kontext", hint: "Criativo" },
-];
 
 const STYLES: { key: StyleKey; label: string; hint: string }[] = [
   { key: "ilustracao", label: "Ilustração", hint: "Cinemática" },
