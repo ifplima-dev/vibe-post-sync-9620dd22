@@ -224,6 +224,11 @@ export default function Profile() {
           )}
         </section>
 
+        {/* AI Caption Settings */}
+        <AiCaptionSettingsCard />
+
+
+
         {/* Videos Section */}
         <section>
           <div className="flex items-center justify-between mb-3">
