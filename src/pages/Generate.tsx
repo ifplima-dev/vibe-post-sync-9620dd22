@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Sparkles,
@@ -10,17 +10,23 @@ import {
   Smartphone,
   ArrowRight,
   Copy,
+  Type,
+  AlignVerticalJustifyCenter,
+  AlignVerticalSpaceAround,
+  AlignVerticalJustifyStart,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 type RatioKey = "1:1" | "4:5" | "9:16";
 type ToneKey = "descontraido" | "profissional" | "vendas";
+type TextPosition = "top" | "center" | "bottom";
 
 const RATIOS: Record<RatioKey, { label: string; width: number; height: number; icon: typeof Square; className: string }> = {
   "1:1": { label: "Quadrado", width: 1024, height: 1024, icon: Square, className: "aspect-square" },
@@ -49,6 +55,11 @@ const STYLES: { key: StyleKey; label: string; hint: string }[] = [
   { key: "foto", label: "Foto", hint: "Realista" },
 ];
 
+const TEXT_POSITIONS: { key: TextPosition; label: string; icon: typeof AlignVerticalJustifyCenter }[] = [
+  { key: "top", label: "Topo", icon: AlignVerticalJustifyStart },
+  { key: "center", label: "Meio", icon: AlignVerticalJustifyCenter },
+  { key: "bottom", label: "Base", icon: AlignVerticalJustifyStart },
+];
 
 function buildPollinationsUrl(prompt: string, ratio: RatioKey, seed: number, engine: EngineKey) {
   const { width, height } = RATIOS[ratio];
@@ -70,8 +81,6 @@ export default function Generate() {
   const [engine, setEngine] = useState<EngineKey>("flux");
   const [style, setStyle] = useState<StyleKey>("ilustracao");
 
-
-
   const [isGenerating, setIsGenerating] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
@@ -81,6 +90,14 @@ export default function Generate() {
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState<string[]>([]);
+
+  const [impactPhrase, setImpactPhrase] = useState("");
+  const [textPosition, setTextPosition] = useState<TextPosition>("center");
+  const [textSize, setTextSize] = useState([56]);
+  const [textColor, setTextColor] = useState("#FFFFFF");
+
+  const imgRef = useRef<HTMLImageElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -140,14 +157,87 @@ export default function Generate() {
     setImageUrl(buildPollinationsUrl(imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
   };
 
+  const renderCanvas = () => {
+    const canvas = canvasRef.current;
+    const img = imgRef.current;
+    if (!canvas || !img || !img.complete || !img.naturalWidth) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+
+    ctx.drawImage(img, 0, 0);
+
+    const phrase = impactPhrase.trim();
+    if (!phrase) return;
+
+    const baseSize = Math.max(16, textSize[0]);
+    const fontSize = Math.min(baseSize, canvas.width / 6);
+    const padding = canvas.width * 0.08;
+    const maxWidth = canvas.width - padding * 2;
+
+    ctx.font = `800 ${fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+
+    const words = phrase.split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let currentLine = "";
+    for (const word of words) {
+      const test = currentLine ? `${currentLine} ${word}` : word;
+      if (ctx.measureText(test).width > maxWidth) {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = test;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+
+    const lineHeight = fontSize * 1.15;
+    const totalHeight = lines.length * lineHeight;
+    let startY = canvas.height / 2 - totalHeight / 2 + lineHeight / 2;
+    if (textPosition === "top") startY = canvas.height * 0.12 + lineHeight / 2;
+    if (textPosition === "bottom") startY = canvas.height * 0.88 - totalHeight + lineHeight / 2;
+
+    const shadowBlur = fontSize * 0.25;
+    const strokeWidth = Math.max(2, fontSize * 0.06);
+
+    lines.forEach((line, i) => {
+      const y = startY + i * lineHeight;
+
+      ctx.shadowColor = "rgba(0,0,0,0.6)";
+      ctx.shadowBlur = shadowBlur;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = fontSize * 0.04;
+
+      ctx.strokeStyle = "rgba(0,0,0,0.75)";
+      ctx.lineWidth = strokeWidth;
+      ctx.strokeText(line, canvas.width / 2, y);
+
+      ctx.shadowColor = "transparent";
+      ctx.fillStyle = textColor;
+      ctx.fillText(line, canvas.width / 2, y);
+    });
+  };
+
+  useEffect(() => {
+    renderCanvas();
+  }, [imageUrl, impactPhrase, textPosition, textSize, textColor]);
+
   const usePost = async () => {
-    if (!imageUrl) return;
+    if (!canvasRef.current) return;
     setIsPreparing(true);
     try {
-      const response = await fetch(imageUrl);
-      if (!response.ok) throw new Error("Falha ao baixar a imagem gerada.");
-      const blob = await response.blob();
-      const file = new File([blob], `gerado-${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvasRef.current?.toBlob(resolve, "image/jpeg", 0.92);
+      });
+      if (!blob) throw new Error("Falha ao processar a imagem final.");
+
+      const file = new File([blob], `gerado-${Date.now()}.jpg`, { type: "image/jpeg" });
 
       navigate("/upload", {
         state: {
@@ -292,8 +382,6 @@ export default function Generate() {
             </div>
           </div>
 
-
-
           <Button onClick={generate} disabled={isGenerating} className="w-full gap-2">
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
             {isGenerating ? "Gerando..." : "Gerar postagem"}
@@ -304,10 +392,15 @@ export default function Generate() {
           <div className="glass rounded-2xl p-4 space-y-4">
             <div className={cn("relative w-full max-w-[350px] mx-auto overflow-hidden rounded-xl bg-muted", RATIOS[ratio].className)}>
               <img
+                ref={imgRef}
                 src={imageUrl}
                 alt={`Imagem gerada sobre ${theme}`}
-                className={cn("w-full h-full object-cover transition-all duration-500", isImageLoading && "blur-lg scale-105")}
-                onLoad={() => setIsImageLoading(false)}
+                className="hidden"
+                crossOrigin="anonymous"
+                onLoad={() => {
+                  setIsImageLoading(false);
+                  renderCanvas();
+                }}
                 onError={() => {
                   setIsImageLoading(false);
                   toast({
@@ -317,11 +410,80 @@ export default function Generate() {
                   });
                 }}
               />
+              <canvas
+                ref={canvasRef}
+                className={cn("w-full h-full object-cover transition-all duration-500", isImageLoading && "blur-lg scale-105")}
+              />
               {isImageLoading && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
               )}
+            </div>
+
+            <div className="space-y-3 border border-border/40 rounded-xl p-3">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Type className="w-4 h-4 text-primary" />
+                Frase de impacto na imagem
+              </div>
+              <Input
+                value={impactPhrase}
+                onChange={(e) => setImpactPhrase(e.target.value)}
+                placeholder="Ex: Você não vai acreditar no que aconteceu..."
+                maxLength={120}
+              />
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Posição do texto</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {TEXT_POSITIONS.map((pos) => {
+                    const Icon = pos.icon;
+                    return (
+                      <button
+                        key={pos.key}
+                        type="button"
+                        onClick={() => setTextPosition(pos.key)}
+                        className={cn(
+                          "flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium border transition-all",
+                          textPosition === pos.key
+                            ? "border-primary bg-primary/20 text-primary"
+                            : "border-border/50 text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        {pos.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Tamanho da fonte</span>
+                  <span>{textSize[0]}px</span>
+                </div>
+                <Slider value={textSize} onValueChange={setTextSize} min={20} max={120} step={4} />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Cor do texto</label>
+                <div className="flex items-center gap-3">
+                  {["#FFFFFF", "#FEF08A", "#F9A8D4", "#000000"].map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setTextColor(color)}
+                      className={cn(
+                        "w-8 h-8 rounded-full border-2 transition-all",
+                        textColor === color ? "border-primary scale-110" : "border-transparent",
+                      )}
+                      style={{ backgroundColor: color }}
+                      aria-label={`Cor ${color}`}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -348,7 +510,6 @@ export default function Generate() {
                 <Copy className="w-4 h-4" />
               </Button>
             </div>
-
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Título</label>
