@@ -57,18 +57,10 @@ const TEXT_POSITIONS: { key: TextPosition; label: string; icon: typeof AlignVert
   { key: "bottom", label: "Base", icon: AlignVerticalJustifyEnd },
 ];
 
-function buildPollinationsUrl(prompt: string, ratio: RatioKey, seed: number, engine: EngineKey) {
-  const { width, height } = RATIOS[ratio];
-  const params = new URLSearchParams({
-    width: String(width),
-    height: String(height),
-    seed: String(seed),
-    nologo: "true",
-    enhance: "true",
-    model: engine,
-  });
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
+function sizeForRatio(ratio: RatioKey): "1024x1024" | "1024x1536" {
+  return ratio === "1:1" ? "1024x1024" : "1024x1536";
 }
+
 
 export default function Generate() {
   const [theme, setTheme] = useState("");
