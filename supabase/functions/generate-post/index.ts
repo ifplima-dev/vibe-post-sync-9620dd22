@@ -106,7 +106,7 @@ Regras:
           vendas: `${clean} 🚀\n\nAproveite agora: chame no direct e garanta o seu antes que acabe!`,
         };
         return json({
-          imagePrompt: `photorealistic editorial photograph, subject: "${clean}", natural cinematic lighting, shallow depth of field, 50mm lens, rich detail, real people and real places, no text, no letters, no watermark, not anime, not cartoon, not 3d render, not illustration`,
+          imagePrompt: `${STYLE_BRIEF[style]}, a symbolic narrative scene that visually represents this Portuguese message: "${clean}", meaningful environment with people and symbolic objects, storytelling composition, ${NEGATIVES}`,
           title: clean.slice(0, 80),
           caption: captionBase[tone] ?? captionBase.descontraido,
           hashtags: ["#" + (slug[0] ?? "post"), ...slug.slice(1).map((w) => "#" + w), "#dicas", "#inspiracao"],
