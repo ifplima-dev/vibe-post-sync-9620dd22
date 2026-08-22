@@ -56,16 +56,17 @@ Deno.serve(async (req) => {
       return json({ error: "Informe um tema com pelo menos 2 caracteres." }, 400);
     }
 
-    const { theme, tone, ratio } = parsed.data;
+    const { theme, tone, ratio, style } = parsed.data;
 
     const systemPrompt = `Você é um social media brasileiro especialista em Instagram, Facebook e TikTok.
 Responda SEMPRE em JSON válido com as chaves exatas: imagePrompt, title, caption, hashtags.
 
 Regras:
-- "imagePrompt": prompt em INGLÊS, detalhado (câmera, luz, cores, composição, estilo fotográfico), para gerar uma imagem impactante sobre o tema. Sem texto/letras na imagem. Formato ${ratio}.
+- "imagePrompt": prompt em INGLÊS. Traduza e INTERPRETE o tema como uma CENA SIMBÓLICA e narrativa (pessoas, ambiente, objetos, metáforas visuais que representem a mensagem), nunca um retrato genérico. Descreva composição, luz, cores e emoção. Estilo obrigatório: ${STYLE_BRIEF[style]}. Formato ${ratio}. Finalize com: ${NEGATIVES}.
 - "title": título curto em português, no máximo 80 caracteres.
 - "caption": legenda em português com tom ${TONE_LABEL[tone]}, entre 300 e 700 caracteres, quebrada em pequenos parágrafos, terminando com uma chamada para ação. NÃO inclua hashtags na caption.
 - "hashtags": array com 8 a 12 hashtags em português relevantes, cada uma começando com #.`;
+
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
