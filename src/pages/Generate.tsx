@@ -127,7 +127,7 @@ export default function Generate() {
   const regenerateImage = () => {
     if (!imagePrompt) return;
     setIsImageLoading(true);
-    setImageUrl(buildPollinationsUrl(imagePrompt, ratio, Math.floor(Math.random() * 1_000_000)));
+    setImageUrl(buildPollinationsUrl(imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
   };
 
   const usePost = async () => {
