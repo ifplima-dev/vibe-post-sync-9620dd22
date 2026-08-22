@@ -5,6 +5,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/dashboard/VideoCard";
 import { EditProfileDialog } from "@/components/profile/EditProfileDialog";
+import { AiCaptionSettingsCard } from "@/components/profile/AiCaptionSettingsCard";
+
 import {
   InstagramIcon,
   TikTokIcon,
@@ -223,6 +225,11 @@ export default function Profile() {
             </div>
           )}
         </section>
+
+        {/* AI Caption Settings */}
+        <AiCaptionSettingsCard />
+
+
 
         {/* Videos Section */}
         <section>

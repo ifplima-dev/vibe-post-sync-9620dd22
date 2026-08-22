@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
+import { useAiCaptionSettings } from "@/hooks/useAiCaptionSettings";
+
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -102,6 +104,12 @@ export default function Generate() {
 
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { data: aiSettings } = useAiCaptionSettings();
+
+  useEffect(() => {
+    if (aiSettings?.tone) setTone(aiSettings.tone as ToneKey);
+  }, [aiSettings?.tone]);
+
 
   const fullDescription = [caption, hashtags.join(" ")].filter(Boolean).join("\n\n");
 
@@ -114,8 +122,24 @@ export default function Generate() {
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-post", {
-        body: { theme: theme.trim(), tone, ratio, style },
+        body: {
+          theme: theme.trim(),
+          tone: aiSettings?.tone ?? tone,
+          ratio,
+          style,
+          settings: aiSettings
+            ? {
+                enabled: aiSettings.enabled,
+                captionLength: aiSettings.caption_length,
+                useEmoji: aiSettings.use_emoji,
+                hashtagCount: aiSettings.hashtag_count,
+                cta: aiSettings.cta || undefined,
+                extraInstructions: aiSettings.extra_instructions || undefined,
+              }
+            : undefined,
+        },
       });
+
 
       if (error) {
         const contextMessage = await (async () => {

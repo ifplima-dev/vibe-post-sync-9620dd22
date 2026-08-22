@@ -1,12 +1,29 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
 
+const SettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  captionLength: z.enum(["curta", "media", "longa"]).default("media"),
+  useEmoji: z.boolean().default(true),
+  hashtagCount: z.number().int().min(0).max(20).default(10),
+  cta: z.string().max(140).optional(),
+  extraInstructions: z.string().max(500).optional(),
+});
+
 const BodySchema = z.object({
   theme: z.string().min(2).max(300),
   tone: z.enum(["descontraido", "profissional", "vendas"]).default("descontraido"),
   ratio: z.enum(["1:1", "4:5", "9:16"]).default("1:1"),
   style: z.enum(["ilustracao", "pintura", "foto"]).default("ilustracao"),
+  settings: SettingsSchema.optional(),
 });
+
+const LENGTH_BRIEF: Record<string, string> = {
+  curta: "entre 120 e 250 caracteres",
+  media: "entre 300 e 700 caracteres",
+  longa: "entre 800 e 1400 caracteres",
+};
+
 
 const STYLE_BRIEF: Record<string, string> = {
   ilustracao:
@@ -57,6 +74,14 @@ Deno.serve(async (req) => {
     }
 
     const { theme, tone, ratio, style } = parsed.data;
+    const settings = parsed.data.settings ?? {
+      enabled: true,
+      captionLength: "media" as const,
+      useEmoji: true,
+      hashtagCount: 10,
+    };
+
+    const hashtagLimit = settings.hashtagCount ?? 10;
 
     const systemPrompt = `Você é um social media brasileiro especialista em Instagram, Facebook e TikTok.
 Responda SEMPRE em JSON válido com as chaves exatas: imagePrompt, title, caption, hashtags.
@@ -64,8 +89,40 @@ Responda SEMPRE em JSON válido com as chaves exatas: imagePrompt, title, captio
 Regras:
 - "imagePrompt": prompt em INGLÊS. Traduza e INTERPRETE o tema como uma CENA SIMBÓLICA e narrativa (pessoas, ambiente, objetos, metáforas visuais que representem a mensagem), nunca um retrato genérico. Descreva composição, luz, cores e emoção. Estilo obrigatório: ${STYLE_BRIEF[style]}. Formato ${ratio}. Finalize com: ${NEGATIVES}.
 - "title": título curto em português, no máximo 80 caracteres.
-- "caption": legenda em português com tom ${TONE_LABEL[tone]}, entre 300 e 700 caracteres, quebrada em pequenos parágrafos, terminando com uma chamada para ação. NÃO inclua hashtags na caption.
-- "hashtags": array com 8 a 12 hashtags em português relevantes, cada uma começando com #.`;
+- "caption": legenda em português com tom ${TONE_LABEL[tone]}, ${LENGTH_BRIEF[settings.captionLength]}, quebrada em pequenos parágrafos, terminando com uma chamada para ação. ${settings.useEmoji ? "Use emojis com moderação." : "NÃO use nenhum emoji."} ${settings.cta ? `Use exatamente esta chamada para ação no final: "${settings.cta}".` : ""} NÃO inclua hashtags na caption.
+- "hashtags": array com ${hashtagLimit === 0 ? "0" : `até ${hashtagLimit}`} hashtags em português relevantes, cada uma começando com #.${settings.extraInstructions ? `\n\nInstruções extras do usuário (siga com prioridade): ${settings.extraInstructions}` : ""}`;
+
+    const localResult = (notice?: string) => {
+      const clean = theme.trim();
+      const slug = clean
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 4);
+      const cta = settings.cta ?? "Salva esse post e comenta o que você achou!";
+      const captionBase: Record<string, string> = {
+        descontraido: `${clean}${settings.useEmoji ? " ✨" : ""}\n\n${cta}`,
+        profissional: `${clean}.\n\nConteúdo pensado para quem busca resultado com consistência.\n\n${cta}`,
+        vendas: `${clean}${settings.useEmoji ? " 🚀" : ""}\n\nAproveite agora.\n\n${cta}`,
+      };
+      return {
+        imagePrompt: `${STYLE_BRIEF[style]}, a symbolic narrative scene that visually represents this Portuguese message: "${clean}", meaningful environment with people and symbolic objects, storytelling composition, ${NEGATIVES}`,
+        title: clean.slice(0, 80),
+        caption: captionBase[tone] ?? captionBase.descontraido,
+        hashtags: ["#" + (slug[0] ?? "post"), ...slug.slice(1).map((w) => "#" + w), "#dicas", "#inspiracao"].slice(
+          0,
+          hashtagLimit,
+        ),
+        notice,
+      };
+    };
+
+    if (!settings.enabled) {
+      return json(localResult("Legendas com IA desativadas no perfil: gerada em modo simples."));
+    }
+
 
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -92,30 +149,15 @@ Regras:
       // Devolvemos uma legenda simples gerada localmente + prompt de imagem,
       // para o Pollinations (grátis) continuar funcionando.
       if (aiResponse.status === 402 || aiResponse.status === 403) {
-        const clean = theme.trim();
-        const slug = clean
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .split(/\s+/)
-          .filter(Boolean)
-          .slice(0, 4);
-        const captionBase: Record<string, string> = {
-          descontraido: `${clean} do jeito que a gente gosta ✨\n\nSalva esse post e conta aqui nos comentários o que você achou!`,
-          profissional: `${clean}.\n\nConteúdo pensado para quem busca resultado com consistência. Acompanhe para mais.`,
-          vendas: `${clean} 🚀\n\nAproveite agora: chame no direct e garanta o seu antes que acabe!`,
-        };
-        return json({
-          imagePrompt: `${STYLE_BRIEF[style]}, a symbolic narrative scene that visually represents this Portuguese message: "${clean}", meaningful environment with people and symbolic objects, storytelling composition, ${NEGATIVES}`,
-          title: clean.slice(0, 80),
-          caption: captionBase[tone] ?? captionBase.descontraido,
-          hashtags: ["#" + (slug[0] ?? "post"), ...slug.slice(1).map((w) => "#" + w), "#dicas", "#inspiracao"],
-          notice:
+        return json(
+          localResult(
             aiResponse.status === 402
               ? "Créditos de IA esgotados: legenda gerada em modo simples. Adicione créditos para legendas com IA."
               : "Uso de IA bloqueado no workspace: legenda gerada em modo simples.",
-        });
+          ),
+        );
       }
+
       if (aiResponse.status === 429) {
         return json({ error: "Muitas solicitações em sequência. Aguarde alguns segundos e tente de novo." }, 429);
       }
@@ -141,8 +183,9 @@ Regras:
       ? result.hashtags
           .filter((h): h is string => typeof h === "string")
           .map((h) => (h.startsWith("#") ? h : `#${h.replace(/\s+/g, "")}`))
-          .slice(0, 12)
+          .slice(0, hashtagLimit)
       : [];
+
 
     const title = (result.title ?? theme).toString().slice(0, 80);
     const caption = (result.caption ?? "").toString().slice(0, 1800);
