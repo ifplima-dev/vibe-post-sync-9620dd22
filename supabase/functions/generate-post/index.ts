@@ -5,7 +5,21 @@ const BodySchema = z.object({
   theme: z.string().min(2).max(300),
   tone: z.enum(["descontraido", "profissional", "vendas"]).default("descontraido"),
   ratio: z.enum(["1:1", "4:5", "9:16"]).default("1:1"),
+  style: z.enum(["ilustracao", "pintura", "foto"]).default("ilustracao"),
 });
+
+const STYLE_BRIEF: Record<string, string> = {
+  ilustracao:
+    "cinematic digital illustration, painterly concept-art style, warm golden hour light, dramatic god rays, rich amber and teal palette, symbolic storytelling composition, highly detailed, emotional and inspirational",
+  pintura:
+    "classical oil painting, thick expressive brush strokes, chiaroscuro lighting, warm renaissance palette, canvas texture, dramatic and reverent atmosphere",
+  foto:
+    "photorealistic editorial photograph, natural cinematic lighting, shallow depth of field, 50mm lens, rich detail, real people and real places",
+};
+
+const NEGATIVES =
+  "no text, no letters, no words, no watermark, no logo, not anime, not manga, no solo female portrait, no selfie, no close-up face only, avoid generic beauty portrait";
+
 
 const TONE_LABEL: Record<string, string> = {
   descontraido: "descontraído, leve e divertido, com emojis",
