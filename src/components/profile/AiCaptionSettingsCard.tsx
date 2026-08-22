@@ -82,6 +82,13 @@ export function AiCaptionSettingsCard() {
               />
             </div>
 
+            <p className="text-xs text-muted-foreground rounded-lg bg-muted/40 p-3 leading-relaxed">
+              A chave da API fica guardada com segurança no servidor — não é preciso digitá-la aqui.
+              O app usa a IA integrada e, se os créditos acabarem, cai automaticamente na sua chave
+              da OpenAI configurada nos segredos do projeto.
+            </p>
+
+
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Tom padrão</Label>
               <div className="grid grid-cols-3 gap-2">
