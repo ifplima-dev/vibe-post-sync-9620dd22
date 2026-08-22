@@ -238,6 +238,29 @@ export default function Generate() {
             </div>
           </div>
 
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Motor de imagem (grátis)</label>
+            <div className="grid grid-cols-3 gap-2">
+              {ENGINES.map((e) => (
+                <button
+                  key={e.key}
+                  type="button"
+                  onClick={() => setEngine(e.key)}
+                  className={cn(
+                    "flex flex-col items-center gap-0.5 py-2 rounded-xl text-xs font-medium border transition-all",
+                    engine === e.key
+                      ? "border-primary bg-primary/20 text-primary"
+                      : "border-border/50 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {e.label}
+                  <span className="text-[10px] opacity-70">{e.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+
           <Button onClick={generate} disabled={isGenerating} className="w-full gap-2">
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
             {isGenerating ? "Gerando..." : "Gerar postagem"}
