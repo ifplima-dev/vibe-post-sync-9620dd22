@@ -67,7 +67,6 @@ export default function Generate() {
   const [tone, setTone] = useState<ToneKey>("descontraido");
   const [ratio, setRatio] = useState<RatioKey>("1:1");
   const [style, setStyle] = useState<StyleKey>("ilustracao");
-  const [style, setStyle] = useState<StyleKey>("ilustracao");
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(false);
