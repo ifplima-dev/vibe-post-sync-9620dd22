@@ -183,8 +183,9 @@ Regras:
       ? result.hashtags
           .filter((h): h is string => typeof h === "string")
           .map((h) => (h.startsWith("#") ? h : `#${h.replace(/\s+/g, "")}`))
-          .slice(0, 12)
+          .slice(0, hashtagLimit)
       : [];
+
 
     const title = (result.title ?? theme).toString().slice(0, 80);
     const caption = (result.caption ?? "").toString().slice(0, 1800);
