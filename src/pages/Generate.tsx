@@ -270,6 +270,29 @@ export default function Generate() {
             </div>
           </div>
 
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Estilo da imagem</label>
+            <div className="grid grid-cols-3 gap-2">
+              {STYLES.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => setStyle(s.key)}
+                  className={cn(
+                    "flex flex-col items-center gap-0.5 py-2 rounded-xl text-xs font-medium border transition-all",
+                    style === s.key
+                      ? "border-primary bg-primary/20 text-primary"
+                      : "border-border/50 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {s.label}
+                  <span className="text-[10px] opacity-70">{s.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+
 
           <Button onClick={generate} disabled={isGenerating} className="w-full gap-2">
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
