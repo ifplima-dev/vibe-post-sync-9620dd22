@@ -91,7 +91,7 @@ Regras:
           vendas: `${clean} 🚀\n\nAproveite agora: chame no direct e garanta o seu antes que acabe!`,
         };
         return json({
-          imagePrompt: `high quality professional photo about ${clean}, cinematic lighting, vibrant colors, sharp focus, no text`,
+          imagePrompt: `photorealistic editorial photograph, subject: "${clean}", natural cinematic lighting, shallow depth of field, 50mm lens, rich detail, real people and real places, no text, no letters, no watermark, not anime, not cartoon, not 3d render, not illustration`,
           title: clean.slice(0, 80),
           caption: captionBase[tone] ?? captionBase.descontraido,
           hashtags: ["#" + (slug[0] ?? "post"), ...slug.slice(1).map((w) => "#" + w), "#dicas", "#inspiracao"],
