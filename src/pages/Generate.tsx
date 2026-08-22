@@ -34,14 +34,23 @@ const TONES: { key: ToneKey; label: string }[] = [
   { key: "vendas", label: "Vendas" },
 ];
 
-function buildPollinationsUrl(prompt: string, ratio: RatioKey, seed: number) {
+type EngineKey = "flux" | "turbo" | "kontext";
+
+const ENGINES: { key: EngineKey; label: string; hint: string }[] = [
+  { key: "flux", label: "Flux", hint: "Realista" },
+  { key: "turbo", label: "Turbo", hint: "Rápido" },
+  { key: "kontext", label: "Kontext", hint: "Criativo" },
+];
+
+function buildPollinationsUrl(prompt: string, ratio: RatioKey, seed: number, engine: EngineKey) {
   const { width, height } = RATIOS[ratio];
   const params = new URLSearchParams({
     width: String(width),
     height: String(height),
     seed: String(seed),
     nologo: "true",
-    model: "flux",
+    enhance: "true",
+    model: engine,
   });
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
 }
@@ -50,6 +59,8 @@ export default function Generate() {
   const [theme, setTheme] = useState("");
   const [tone, setTone] = useState<ToneKey>("descontraido");
   const [ratio, setRatio] = useState<RatioKey>("1:1");
+  const [engine, setEngine] = useState<EngineKey>("flux");
+
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(false);
@@ -96,7 +107,7 @@ export default function Generate() {
       setCaption(data.caption);
       setHashtags(Array.isArray(data.hashtags) ? data.hashtags : []);
       setIsImageLoading(true);
-      setImageUrl(buildPollinationsUrl(data.imagePrompt, ratio, Math.floor(Math.random() * 1_000_000)));
+      setImageUrl(buildPollinationsUrl(data.imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
 
       if (data.notice) {
         toast({ title: "Modo simples", description: data.notice });
@@ -116,7 +127,7 @@ export default function Generate() {
   const regenerateImage = () => {
     if (!imagePrompt) return;
     setIsImageLoading(true);
-    setImageUrl(buildPollinationsUrl(imagePrompt, ratio, Math.floor(Math.random() * 1_000_000)));
+    setImageUrl(buildPollinationsUrl(imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
   };
 
   const usePost = async () => {
@@ -226,6 +237,29 @@ export default function Generate() {
               })}
             </div>
           </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Motor de imagem (grátis)</label>
+            <div className="grid grid-cols-3 gap-2">
+              {ENGINES.map((e) => (
+                <button
+                  key={e.key}
+                  type="button"
+                  onClick={() => setEngine(e.key)}
+                  className={cn(
+                    "flex flex-col items-center gap-0.5 py-2 rounded-xl text-xs font-medium border transition-all",
+                    engine === e.key
+                      ? "border-primary bg-primary/20 text-primary"
+                      : "border-border/50 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {e.label}
+                  <span className="text-[10px] opacity-70">{e.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
 
           <Button onClick={generate} disabled={isGenerating} className="w-full gap-2">
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
