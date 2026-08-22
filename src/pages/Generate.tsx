@@ -83,6 +83,7 @@ export default function Generate() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
 
   const [imagePrompt, setImagePrompt] = useState("");
@@ -134,6 +135,7 @@ export default function Generate() {
       setCaption(data.caption);
       setHashtags(Array.isArray(data.hashtags) ? data.hashtags : []);
       setIsImageLoading(true);
+      setImageLoaded(false);
       setImageUrl(buildPollinationsUrl(data.imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
 
       if (data.notice) {
@@ -154,6 +156,7 @@ export default function Generate() {
   const regenerateImage = () => {
     if (!imagePrompt) return;
     setIsImageLoading(true);
+    setImageLoaded(false);
     setImageUrl(buildPollinationsUrl(imagePrompt, ratio, Math.floor(Math.random() * 1_000_000), engine));
   };
 
@@ -399,10 +402,12 @@ export default function Generate() {
                 crossOrigin="anonymous"
                 onLoad={() => {
                   setIsImageLoading(false);
+                  setImageLoaded(true);
                   renderCanvas();
                 }}
                 onError={() => {
                   setIsImageLoading(false);
+                  setImageLoaded(false);
                   toast({
                     title: "A imagem não carregou",
                     description: "O serviço gratuito pode estar ocupado. Toque em regenerar.",
@@ -536,7 +541,7 @@ export default function Generate() {
               </div>
             )}
 
-            <Button onClick={usePost} disabled={isPreparing || isImageLoading} className="w-full gap-2">
+            <Button onClick={usePost} disabled={isPreparing || isImageLoading || !imageLoaded} className="w-full gap-2">
               {isPreparing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
               Usar nesta postagem
             </Button>
