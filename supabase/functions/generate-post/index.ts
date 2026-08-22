@@ -123,27 +123,63 @@ Regras:
       return json(localResult("Legendas com IA desativadas no perfil: gerada em modo simples."));
     }
 
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Tema da postagem: ${theme}. Retorne apenas o json.` },
+    ];
 
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Lovable-API-Key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-5.6-sol",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Tema da postagem: ${theme}. Retorne apenas o json.` },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
+    const callGateway = () =>
+      fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Lovable-API-Key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-5.6-sol",
+          messages,
+          response_format: { type: "json_object" },
+        }),
+      });
+
+    // Chave própria da OpenAI (opcional): usada como reserva quando a IA do
+    // Lovable estiver sem créditos ou bloqueada.
+    const callOpenAI = () =>
+      fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openaiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages,
+          response_format: { type: "json_object" },
+        }),
+      });
+
+    let aiResponse = await callGateway();
+    let usedOwnKey = false;
+
+    if (!aiResponse.ok && openaiKey && [401, 402, 403, 429, 500, 502, 503].includes(aiResponse.status)) {
+      const gatewayText = await aiResponse.text().catch(() => "");
+      console.error("Gateway falhou, usando OPENAI_API_KEY", aiResponse.status, gatewayText);
+      aiResponse = await callOpenAI();
+      usedOwnKey = true;
+    }
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text().catch(() => "");
-      console.error("AI gateway error", aiResponse.status, errorText);
+      console.error("AI error", usedOwnKey ? "openai" : "gateway", aiResponse.status, errorText);
+
+      if (usedOwnKey && (aiResponse.status === 401 || aiResponse.status === 403)) {
+        return json(localResult("Sua chave da OpenAI foi recusada (inválida ou sem acesso). Legenda em modo simples."));
+      }
+      if (usedOwnKey && aiResponse.status === 429) {
+        return json(localResult("Sua conta OpenAI está sem cota no momento. Legenda em modo simples."));
+      }
 
       // 402 (sem créditos) e 403 (IA bloqueada): não travam o gerador.
       // Devolvemos uma legenda simples gerada localmente + prompt de imagem,
@@ -152,7 +188,7 @@ Regras:
         return json(
           localResult(
             aiResponse.status === 402
-              ? "Créditos de IA esgotados: legenda gerada em modo simples. Adicione créditos para legendas com IA."
+              ? "Créditos de IA esgotados: legenda gerada em modo simples. Adicione créditos ou uma chave da OpenAI no perfil."
               : "Uso de IA bloqueado no workspace: legenda gerada em modo simples.",
           ),
         );
@@ -166,6 +202,7 @@ Regras:
 
 
     const aiData = await aiResponse.json();
+
     const content: string = aiData?.choices?.[0]?.message?.content ?? "";
 
     let result: { imagePrompt?: string; title?: string; caption?: string; hashtags?: unknown };
